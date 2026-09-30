@@ -9,6 +9,7 @@ export type BlertEvent =
   | { type: 'rule.fired'; ts: string; alert: Alert }
   | { type: 'rules.changed'; ts: string; ruleIds: number[] }
   | { type: 'conn.status'; ts: string; stream: string; state: 'connecting' | 'open' | 'retrying' | 'closed'; attempt: number }
-  | { type: 'conn.gap'; ts: string; from: string; to: string; reason: 'sleep' | 'disconnect' };
+  // ongoing: 5분 넘게 끊긴 채로 아직 복구되지 않았음을 알리는 경고. 없으면 끝난 감시 중단 구간이다.
+  | { type: 'conn.gap'; ts: string; from: string; to: string; reason: 'sleep' | 'disconnect'; ongoing?: boolean };
 
 export type EventOf<T extends BlertEvent['type']> = Extract<BlertEvent, { type: T }>;

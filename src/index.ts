@@ -3,6 +3,7 @@ import { createInterface, type Interface } from 'node:readline';
 import { runCli } from './cli/index.js';
 import type { Deps, Io } from './cli/index.js';
 import { createPresetService } from './presets/index.js';
+import { createNotifier } from './notify/index.js';
 import { Store } from './store/index.js';
 
 /** 질문할 때만 stdin을 연다. 입력이 끝나면 ask는 null을 돌려준다. */
@@ -44,7 +45,11 @@ function createIo(): Io & { close(): void } {
 
 const io = createIo();
 const store = new Store();
-const deps: Deps = { store, presets: createPresetService(store), io };
+const notifier = createNotifier({
+  out: (line) => io.out(line),
+  soundEnabled: async () => (await store.loadConfig()).soundEnabled,
+});
+const deps: Deps = { store, presets: createPresetService(store), notifier, io };
 const code = await runCli(process.argv.slice(2), deps);
 io.close();
 process.exitCode = code;

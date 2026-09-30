@@ -61,7 +61,7 @@ export interface ConnectionDeps {
 /**
  * 결합 스트림 연결 하나. /stream에 붙은 뒤 SUBSCRIBE로 구독한다.
  * - 끊기면 1초부터 최대 60초까지 지수 백오프로 무한 재시도 (NFR-REL-01)
- * - 5분 넘게 끊겨 있으면 conn.gap을 한 번 더 내보낸다: 이때 state가 open이 아니면 '지속 중인 끊김'이다
+ * - 5분 넘게 끊겨 있으면 ongoing: true인 conn.gap을 한 번 내보낸다 (아직 복구되지 않은 끊김 경고)
  * - 다시 열리면 끊긴 구간 전체를 conn.gap으로 내보낸다 (NFR-REL-02)
  * - 24시간 만료 10분 전에 새 연결을 열고 구독 확인 뒤에 옛 연결을 닫는다
  */
@@ -207,7 +207,7 @@ export class ManagedConnection {
   private warnOutage(): void {
     if (this.stopped || this.outageStart === undefined) return;
     const now = this.deps.clock.now();
-    this.deps.emit({ type: 'conn.gap', ts: iso(now), from: iso(this.outageStart), to: iso(now), reason: 'disconnect' });
+    this.deps.emit({ type: 'conn.gap', ts: iso(now), from: iso(this.outageStart), to: iso(now), reason: 'disconnect', ongoing: true });
   }
 
   private armWatchdog(): void {

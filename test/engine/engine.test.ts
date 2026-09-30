@@ -34,6 +34,17 @@ describe('engine 가격 (FR-ALERT-01)', () => {
     expect(a).toMatchObject({ kind: 'down', titleKey: 'alert.price.below.title' });
   });
 
+  it('규칙의 --sound 지정은 알림에 담기고, 없으면 담지 않는다', () => {
+    const engine = new Engine();
+    const quiet = rule({ type: 'price', direction: 'above', price: 1 }, { kind: 'once' }, { id: 201 });
+    quiet.sound = 'off';
+    const plain = rule({ type: 'price', direction: 'above', price: 1 }, { kind: 'once' }, { id: 202, symbol: 'ETHUSDT' });
+    engine.setRules([quiet, plain]);
+    const [a, b] = fire(engine, ticker(T0, 5), ticker(T0, 5, 'spot', 'ETHUSDT'));
+    expect(a!.sound).toBe('off');
+    expect('sound' in b!).toBe(false);
+  });
+
   it('일시정지(비활성) 규칙은 평가하지 않는다', () => {
     const engine = new Engine();
     const r = rule({ type: 'price', direction: 'above', price: 1 }, { kind: 'once' });

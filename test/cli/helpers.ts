@@ -1,12 +1,16 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runCli, type Deps, type PresetService } from '../../src/cli/index.js';
+import { runCli, type Deps, type NotifierPort, type PresetService } from '../../src/cli/index.js';
 import { createPresetService } from '../../src/presets/index.js';
 import { Store } from '../../src/store/index.js';
 
 export interface Harness {
   deps: Deps;
+  /** 가짜 notifier가 받은 호출 (예: 'test:up', 'soundTest:warn') */
+  calls: string[];
+  /** true로 바꾸면 다음 soundTest가 실패한다 */
+  failSound: { value: boolean };
   out: string[];
   err: string[];
   asked: string[];
@@ -34,8 +38,18 @@ export async function makeHarness(answers: string[] = [], presets: PresetService
   const asked: string[] = [];
   const queue = [...answers];
   const store = new Store(dir);
+  const calls: string[] = [];
+  const failSound = { value: false };
+  const notifier: NotifierPort = {
+    test: async (kind) => void calls.push(`test:${kind}`),
+    soundTest: async (kind) => {
+      calls.push(`soundTest:${kind}`);
+      if (failSound.value) throw new Error('no audio device');
+    },
+  };
   const deps: Deps = {
     store,
+    notifier,
     presets: presets === 'real' ? createPresetService(store) : presets,
     io: {
       out: (t) => void out.push(t),
@@ -48,6 +62,8 @@ export async function makeHarness(answers: string[] = [], presets: PresetService
   };
   return {
     deps,
+    calls,
+    failSound,
     out,
     err,
     asked,

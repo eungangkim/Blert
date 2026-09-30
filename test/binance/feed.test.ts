@@ -197,15 +197,16 @@ describe('binance 재연결 (FR-CONN-01, NFR-REL-01)', () => {
     expect(of('conn.gap')).toHaveLength(0);
     await tick(1);
     expect(of('conn.gap')).toEqual([
-      expect.objectContaining({ from: iso(dropAt), to: iso(dropAt + 5 * MIN), reason: 'disconnect' }),
+      expect.objectContaining({ from: iso(dropAt), to: iso(dropAt + 5 * MIN), reason: 'disconnect', ongoing: true }),
     ]);
-    expect(of('conn.status').at(-1)?.state).toBe('retrying'); // 아직 끊겨 있음 = 지속 중인 끊김
+    expect(of('conn.status').at(-1)?.state).toBe('retrying'); // 아직 끊겨 있음
 
     net.refuse = false;
     await tick(61_000);
     const gaps = of('conn.gap');
     expect(gaps).toHaveLength(2);
     expect(gaps[1]).toMatchObject({ from: iso(dropAt), reason: 'disconnect' });
+    expect(gaps[1]!.ongoing).toBeUndefined(); // 끝난 구간
     expect(Date.parse(gaps[1]!.to)).toBeGreaterThan(dropAt + 5 * MIN);
     expect(of('conn.status').at(-1)).toMatchObject({ state: 'open', attempt: 0 });
   });

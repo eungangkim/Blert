@@ -109,5 +109,12 @@ export function measureFunding(rule: Rule, ratePct: number): Measurement | null 
 }
 
 export function toAlert(rule: Rule, m: Measurement, firedAtIso: string): Alert {
-  return { ruleId: rule.id, kind: m.kind, titleKey: m.titleKey, params: m.params, firedAt: firedAtIso };
+  return {
+    ruleId: rule.id,
+    kind: m.kind,
+    titleKey: m.titleKey,
+    params: m.params,
+    firedAt: firedAtIso,
+    ...(rule.sound ? { sound: rule.sound } : {}),
+  };
 }

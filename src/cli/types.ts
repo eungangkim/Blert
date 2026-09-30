@@ -1,5 +1,6 @@
 import type { Store } from '../store/index.js';
 import type { PresetService } from '../presets/index.js';
+import type { SoundKind } from '../shared/types.js';
 
 export type { PresetService };
 
@@ -10,9 +11,21 @@ export interface Io {
   ask(question: string): Promise<string | null>;
 }
 
+/**
+ * 시험 알림·소리 시험에 필요한 기능. cli는 notify를 직접 알 수 없어(B2) cli가 정의하고,
+ * 실제 구현(notify의 Notifier)은 진입점에서 연결한다.
+ */
+export interface NotifierPort {
+  /** 시험 알림을 데스크톱·콘솔·소리로 보낸다. 소리는 설정(켬/끔)을 따른다 */
+  test(kind: SoundKind): Promise<void>;
+  /** 설정과 무관하게 소리만 재생한다. 실패하면 Error */
+  soundTest(kind: SoundKind): Promise<void>;
+}
+
 export interface Deps {
   store: Store;
   presets: PresetService;
+  notifier: NotifierPort;
   io: Io;
 }
 
