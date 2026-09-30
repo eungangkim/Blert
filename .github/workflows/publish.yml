@@ -1,0 +1,27 @@
+# npm provenance 서명 배포 (NFR-SEC-04). 태그(v0.1.0 등)를 푸시하면 실행된다.
+# 전제: package.json의 repository 필드가 이 GitHub 저장소를 가리키고, 저장소 시크릿에 NPM_TOKEN이 있어야 한다.
+name: publish
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  id-token: write # provenance 서명에 필요
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      # 공급망 보안을 위해 액션은 커밋 SHA로 고정하는 것을 권장한다 (태그는 바뀔 수 있다)
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npm test
+      - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
