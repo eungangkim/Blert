@@ -3,7 +3,6 @@
   "store.schemaTooNew": "{file}이(가) 더 새 버전의 blert로 만들어졌습니다(schemaVersion {found}). blert를 최신 버전으로 업데이트하세요. 예: npm install -g blert",
   "store.corrupt": "{file}을(를) 읽을 수 없습니다(JSON 형식 오류). 파일을 고치거나 삭제하면 기본값으로 다시 만듭니다. 예: {path}를 삭제한 뒤 blert init 실행",
   "store.ruleNotFound": "ID {id}에 해당하는 알림이 없습니다. `blert list --all`로 ID를 확인하세요. 예: blert del 3",
-
   "err.internal": "예상하지 못한 오류가 발생했습니다: {detail}. 같은 오류가 반복되면 로그를 확인하세요. 예: {logsDir} 폴더의 최신 로그 파일",
   "err.didYouMean": "알 수 없는 명령입니다: {input}. 혹시 `{suggestion}`? 예: blert {suggestion} --help",
   "err.unknownCommand": "알 수 없는 명령입니다: {input}. `blert --help`로 전체 명령을 확인하세요. 예: blert list",
@@ -33,7 +32,12 @@
   "err.noInput": "입력을 받을 수 없습니다. 입력을 받을 수 있는 터미널에서 실행하세요. 예: 터미널에 직접 blert init 입력",
   "err.invalidAnswer": "답변을 이해하지 못해 초기 설정을 중단했습니다. 안내된 값 중에서 입력하세요. 예: y 또는 n, 프리셋은 번호",
   "err.initDeclined": "고지에 동의하지 않아 초기 설정을 중단했습니다. 동의하려면 다시 실행해 y를 입력하세요. 예: blert init",
-
+  "err.presetSub": "알 수 없는 preset 하위 명령입니다: {value}. {subs} 중 하나를 쓰세요. 예: blert preset list",
+  "err.presetSubDidYouMean": "알 수 없는 preset 하위 명령입니다: {value}. 혹시 `{suggestion}`? 예: blert preset {suggestion}",
+  "err.presetUnknown": "프리셋 `{value}`이(가) 없습니다. `blert preset list`로 이름을 확인하세요(현재: {slugs}). 예: blert preset install major-swing",
+  "err.presetUnknownDidYouMean": "프리셋 `{value}`이(가) 없습니다. 혹시 `{suggestion}`? 예: blert preset install {suggestion}",
+  "err.presetInstalled": "프리셋 `{slug}`은(는) 이미 설치되어 있습니다. 다시 설치하려면 먼저 제거하세요. 예: blert preset remove {slug}",
+  "err.presetNotInstalled": "프리셋 `{slug}`은(는) 설치되어 있지 않습니다. 설치된 프리셋은 `blert preset list`로 확인하세요. 예: blert preset install {slug}",
   "help.title": "blert — 바이낸스 현물·선물 알림을 내 PC에서 받는 CLI",
   "help.usage": "사용법: blert <명령> [인자]",
   "help.commands": "명령:",
@@ -45,7 +49,6 @@
   "help.advanced.mode": "  --mode <정책>   반복 정책 변경: once, cooldown:<시간>(1m~24h), hyst:<퍼센트>. 생략하면 유형별 기본값",
   "help.advanced.sound": "  --sound <종류>  이 알림의 사운드: up, down, account, warn, off",
   "help.advanced.name": "  --name <이름>   목록에 표시할 별칭",
-
   "help.cmd.init.summary": "초기 설정(고지 동의, 소리, 프리셋)을 대화형으로 진행",
   "help.cmd.init.examples": "blert init\nnpx blert init",
   "help.cmd.add.summary": "알림 추가 (price, change, volume, funding)",
@@ -58,7 +61,6 @@
   "help.cmd.pause.examples": "blert pause 2\nblert pause all",
   "help.cmd.resume.summary": "일시정지한 알림 재개 (ID 또는 all)",
   "help.cmd.resume.examples": "blert resume 2\nblert resume all",
-
   "usage.init": "blert init",
   "usage.add.price": "blert add price <심볼> above|below <가격>",
   "usage.add.change": "blert add change <심볼> <퍼센트> <기간> [up|down]",
@@ -68,7 +70,6 @@
   "usage.del": "blert del <ID|all>",
   "usage.pause": "blert pause <ID|all>",
   "usage.resume": "blert resume <ID|all>",
-
   "example.option.mode": "cooldown:10m",
   "example.option.sound": "warn",
   "example.option.name": "목표가",
@@ -79,7 +80,6 @@
   "example.del": "blert del 3",
   "example.pause": "blert pause 2",
   "example.resume": "blert resume 2",
-
   "market.spot": "현물",
   "market.futures": "선물",
   "type.price": "가격",
@@ -95,10 +95,8 @@
   "repeat.cooldown": "쿨다운 {duration}",
   "repeat.hysteresis": "히스테리시스 {pct}%",
   "rule.summary": "{market} {symbol} {condition} · {repeat}",
-
   "add.done": "알림 {id}번을 등록했습니다: {summary}",
   "add.next": "감시를 시작하려면 `blert run`을 실행하세요. 등록한 알림은 `blert list`로 확인합니다.",
-
   "list.empty": "표시할 알림이 없습니다. `blert add price BTC above 70000`처럼 추가하거나 프리셋을 설치하세요.",
   "list.hiddenNote": "발동이 끝난 알림 {count}개는 `blert list --all`로 볼 수 있습니다.",
   "list.col.id": "ID",
@@ -114,12 +112,10 @@
   "list.status.fired": "비활성",
   "list.source.manual": "직접",
   "list.symbolWithName": "{symbol} ({name})",
-
   "del.done": "알림 {count}개를 삭제했습니다.",
   "pause.done": "알림 {count}개를 일시정지했습니다.",
   "resume.done": "알림 {count}개를 재개했습니다.",
   "manage.none": "대상 알림이 없습니다. `blert list --all`로 확인하세요.",
-
   "init.disclaimer": "blert는 투자 조언이 아니며, 알림 누락·지연으로 생긴 손실에 책임지지 않습니다.\n모든 설정과 데이터는 이 PC에만 저장되고, 바이낸스 외 서버로는 아무것도 보내지 않습니다.",
   "init.askAgree": "위 내용에 동의하십니까? (y/n) ",
   "init.askSound": "알림 소리를 켤까요? (Y/n) ",
@@ -131,7 +127,6 @@
   "init.askPresetNumber": "번호 입력 (기본 0): ",
   "init.done": "초기 설정을 마쳤습니다. 프리셋으로 알림 {count}개를 등록했습니다.",
   "init.next": "다음 단계:\n  blert test   알림이 뜨는지 확인\n  blert run    감시 시작",
-
   "alert.price.above.title": "{coin} {target} 돌파",
   "alert.price.above.body": "현재 {price} {quote} · {market}",
   "alert.price.below.title": "{coin} {target} 이탈",
@@ -143,5 +138,25 @@
   "alert.funding.above.title": "{coin} 선물 펀딩비 {rate}",
   "alert.funding.above.body": "기준 {threshold} 초과",
   "alert.funding.below.title": "{coin} 선물 펀딩비 {rate}",
-  "alert.funding.below.body": "기준 {threshold} 미만"
+  "alert.funding.below.body": "기준 {threshold} 미만",
+  "help.cmd.preset.summary": "프리셋(알림 묶음) 목록·설치·제거",
+  "help.cmd.preset.examples": "blert preset list\nblert preset install major-swing\nblert preset remove major-swing",
+  "usage.preset.list": "blert preset list",
+  "usage.preset.install": "blert preset install <이름>",
+  "usage.preset.remove": "blert preset remove <이름>",
+  "example.preset.list": "blert preset list",
+  "example.preset.install": "blert preset install major-swing",
+  "example.preset.remove": "blert preset remove major-swing",
+  "preset.major-swing.name": "메이저 급등락",
+  "preset.volume-burst.name": "거래량 폭발",
+  "preset.futures-heat.name": "선물 과열",
+  "preset.col.slug": "이름(슬러그)",
+  "preset.col.name": "표시 이름",
+  "preset.col.rules": "규칙 수",
+  "preset.col.status": "상태",
+  "preset.status.installed": "설치됨",
+  "preset.status.available": "미설치",
+  "preset.install.done": "프리셋 `{slug}`({name})을 설치했습니다. 알림 {count}개를 등록했습니다. `blert list`로 확인하세요.",
+  "preset.remove.done": "프리셋 `{slug}`({name})을 제거했습니다. 알림 {count}개를 삭제했습니다.",
+  "init.presetInstalledMark": " (설치됨)"
 }

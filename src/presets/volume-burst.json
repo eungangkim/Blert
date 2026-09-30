@@ -1,0 +1,12 @@
+{
+  "slug": "volume-burst",
+  "version": 1,
+  "nameKey": "preset.volume-burst.name",
+  "rules": [
+    { "type": "volume", "market": "spot", "symbol": "BTCUSDT", "condition": { "type": "volume", "multiple": 3, "shortMs": 300000, "longMs": 3600000 } },
+    { "type": "volume", "market": "spot", "symbol": "ETHUSDT", "condition": { "type": "volume", "multiple": 3, "shortMs": 300000, "longMs": 3600000 } },
+    { "type": "volume", "market": "spot", "symbol": "SOLUSDT", "condition": { "type": "volume", "multiple": 3, "shortMs": 300000, "longMs": 3600000 } },
+    { "type": "volume", "market": "spot", "symbol": "XRPUSDT", "condition": { "type": "volume", "multiple": 3, "shortMs": 300000, "longMs": 3600000 } },
+    { "type": "volume", "market": "spot", "symbol": "BNBUSDT", "condition": { "type": "volume", "multiple": 3, "shortMs": 300000, "longMs": 3600000 } }
+  ]
+}

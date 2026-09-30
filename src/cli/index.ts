@@ -7,12 +7,13 @@ import { commandHelp, topHelp } from './help.js';
 import { addCommand } from './add.js';
 import { delCommand, listCommand, pauseCommand, resumeCommand } from './manage.js';
 import { initCommand } from './init.js';
+import { presetCommand } from './preset.js';
 import type { Command, Deps } from './types.js';
 
 export type { Deps, Io, PresetService, Command } from './types.js';
 
-/** 이후 단계의 명령(preset, run, sound, test)은 여기에 등록한다. */
-export const defaultCommands: Command[] = [initCommand, addCommand, listCommand, delCommand, pauseCommand, resumeCommand];
+/** 이후 단계의 명령(run, sound, test)은 여기에 등록한다. */
+export const defaultCommands: Command[] = [initCommand, addCommand, listCommand, delCommand, pauseCommand, resumeCommand, presetCommand];
 
 function report(deps: Deps, e: unknown): number {
   if (e instanceof BlertError) {

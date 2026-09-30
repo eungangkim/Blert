@@ -44,14 +44,17 @@ export const initCommand: Command = {
     const sound = await askYesNo(io, t('init.askSound'), true);
 
     let installed = 0;
-    const list = presets.list();
+    const list = await presets.list();
     let chosen: string | undefined;
     if (list.length > 0) {
       io.out(t('init.askPreset'));
-      list.forEach((p, i) => io.out(t('init.presetLine', { n: i + 1, slug: p.slug, name: t(p.nameKey) })));
+      list.forEach((p, i) =>
+        io.out(t('init.presetLine', { n: i + 1, slug: p.slug, name: t(p.nameKey) }) + (p.installed ? t('init.presetInstalledMark') : '')),
+      );
       io.out(t('init.presetNone'));
       const n = await askChoice(io, t('init.askPresetNumber'), list.length);
-      chosen = n > 0 ? list[n - 1]!.slug : undefined;
+      const pick = n > 0 ? list[n - 1]! : undefined;
+      chosen = pick && !pick.installed ? pick.slug : undefined; // 이미 설치된 프리셋은 다시 설치하지 않는다
     }
 
     await store.updateConfig((c) => {

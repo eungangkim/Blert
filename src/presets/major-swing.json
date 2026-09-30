@@ -1,0 +1,10 @@
+{
+  "slug": "major-swing",
+  "version": 1,
+  "nameKey": "preset.major-swing.name",
+  "rules": [
+    { "type": "change", "market": "spot", "symbol": "BTCUSDT", "condition": { "type": "change", "pct": 5, "windowMs": 3600000, "direction": "both" } },
+    { "type": "change", "market": "spot", "symbol": "ETHUSDT", "condition": { "type": "change", "pct": 5, "windowMs": 3600000, "direction": "both" } },
+    { "type": "change", "market": "spot", "symbol": "SOLUSDT", "condition": { "type": "change", "pct": 5, "windowMs": 3600000, "direction": "both" } }
+  ]
+}

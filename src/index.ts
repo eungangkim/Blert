@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { createInterface, type Interface } from 'node:readline';
 import { runCli } from './cli/index.js';
-import type { Deps, Io, PresetService } from './cli/index.js';
+import type { Deps, Io } from './cli/index.js';
+import { createPresetService } from './presets/index.js';
 import { Store } from './store/index.js';
 
 /** 질문할 때만 stdin을 연다. 입력이 끝나면 ask는 null을 돌려준다. */
@@ -41,11 +42,9 @@ function createIo(): Io & { close(): void } {
   };
 }
 
-// 프리셋 모듈(4단계) 연결 전까지의 임시 구현: 프리셋 없음
-const noPresets: PresetService = { list: () => [], install: async () => 0 };
-
 const io = createIo();
-const deps: Deps = { store: new Store(), presets: noPresets, io };
+const store = new Store();
+const deps: Deps = { store, presets: createPresetService(store), io };
 const code = await runCli(process.argv.slice(2), deps);
 io.close();
 process.exitCode = code;

@@ -1,0 +1,11 @@
+{
+  "slug": "futures-heat",
+  "version": 1,
+  "nameKey": "preset.futures-heat.name",
+  "rules": [
+    { "type": "funding", "market": "futures", "symbol": "BTCUSDT", "condition": { "type": "funding", "direction": "above", "pct": 0.05 } },
+    { "type": "funding", "market": "futures", "symbol": "BTCUSDT", "condition": { "type": "funding", "direction": "below", "pct": -0.05 } },
+    { "type": "funding", "market": "futures", "symbol": "ETHUSDT", "condition": { "type": "funding", "direction": "above", "pct": 0.05 } },
+    { "type": "funding", "market": "futures", "symbol": "ETHUSDT", "condition": { "type": "funding", "direction": "below", "pct": -0.05 } }
+  ]
+}
