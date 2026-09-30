@@ -9,12 +9,13 @@ import { delCommand, listCommand, pauseCommand, resumeCommand } from './manage.j
 import { initCommand } from './init.js';
 import { presetCommand } from './preset.js';
 import { soundCommand, testCommand } from './sound.js';
+import { runCommand } from './run.js';
 import type { Command, Deps } from './types.js';
 
-export type { Deps, Io, PresetService, NotifierPort, Command } from './types.js';
+export type { Deps, Io, PresetService, NotifierPort, Runner, Command } from './types.js';
 
-/** 이후 단계의 명령(run)은 여기에 등록한다. */
-export const defaultCommands: Command[] = [initCommand, addCommand, listCommand, delCommand, pauseCommand, resumeCommand, presetCommand, soundCommand, testCommand];
+/** 명령 레지스트리. 도움말과 오타 제안이 이 목록을 쓴다. */
+export const defaultCommands: Command[] = [initCommand, addCommand, listCommand, delCommand, pauseCommand, resumeCommand, presetCommand, soundCommand, testCommand, runCommand];
 
 function report(deps: Deps, e: unknown): number {
   if (e instanceof BlertError) {

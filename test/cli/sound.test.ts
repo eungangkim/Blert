@@ -63,3 +63,20 @@ describe('cli sound / test (FR-NOTI-01~02)', () => {
     expect(h.err[0]).toContain('예: blert sound test up');
   });
 });
+
+describe('cli run (FR-RUN-01)', () => {
+  it('run은 감시 실행기에 넘기고 종료 코드를 그대로 돌려준다', async () => {
+    expect(await h.run('run')).toBe(0);
+    h.runCode.value = 3;
+    expect(await h.run('run')).toBe(3);
+    h.runCode.value = 9;
+    expect(await h.run('run --verbose')).toBe(9);
+    expect(h.calls).toEqual(['run:false', 'run:false', 'run:true']);
+  });
+
+  it('run에 인자를 주면 사용법을 안내하고 실행하지 않는다', async () => {
+    expect(await h.run('run now')).toBe(1);
+    expect(h.err[0]).toContain('blert run');
+    expect(h.calls).toEqual([]);
+  });
+});

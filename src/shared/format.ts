@@ -13,6 +13,11 @@ export function formatPrice(n: number): string {
   return formatNumber(n, decimals);
 }
 
+/** 사용자가 입력한 값을 자릿수 손실 없이 보여준다 (목표가 등). 천 단위 쉼표만 붙인다. */
+export function formatExact(n: number): string {
+  return n.toLocaleString('en-US', { maximumFractionDigits: 8 });
+}
+
 /** 부호를 붙이면 음수는 유니코드 마이너스(−)로 표기한다 */
 export function formatPct(n: number, decimals = 1, signed = false): string {
   const body = formatNumber(Math.abs(n), decimals);

@@ -10,6 +10,8 @@ const MINUTE = 60 * SECOND;
 // NFR-REL-01, B5 연결 생명주기
 export const RETRY_BASE_MS = 1 * SECOND;
 export const RETRY_MAX_MS = 60 * SECOND;
+/** attempt번째 실패 뒤 기다리는 시간: 1초, 2초, 4초 … 최대 60초 */
+export const retryDelayMs = (attempt: number): number => Math.min(RETRY_BASE_MS * 2 ** (attempt - 1), RETRY_MAX_MS);
 export const OUTAGE_WARN_MS = 5 * MINUTE;
 /** 24시간 연결 만료 10분 전에 새 연결로 옮긴다 */
 export const ROTATE_AFTER_MS = 24 * 60 * MINUTE - 10 * MINUTE;
@@ -200,8 +202,7 @@ export class ManagedConnection {
     }
     this.attempt++;
     this.setState('retrying');
-    const delay = Math.min(RETRY_BASE_MS * 2 ** (this.attempt - 1), RETRY_MAX_MS);
-    this.timers.retry = setTimeout(() => this.connect(), delay);
+    this.timers.retry = setTimeout(() => this.connect(), retryDelayMs(this.attempt));
   }
 
   private warnOutage(): void {

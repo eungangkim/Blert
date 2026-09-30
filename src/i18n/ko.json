@@ -195,5 +195,18 @@
   "sound.on.done": "소리를 켰습니다. `blert sound test up`으로 확인하세요.",
   "sound.off.done": "소리를 껐습니다. 알림은 계속 표시됩니다.",
   "sound.muted": "소리가 꺼져 있지만 시험을 위해 재생합니다. 켜려면 `blert sound on`을 실행하세요.",
-  "sound.testing": "`{kind}` 소리를 재생합니다."
+  "sound.testing": "`{kind}` 소리를 재생합니다.",
+  "err.runNoRules": "감시할 활성 알림이 없습니다. 알림을 추가하거나 일시정지한 알림을 재개하세요. 예: blert add price BTC above 70000 또는 blert preset install major-swing",
+  "err.startConnect": "바이낸스에 연결하지 못했습니다({streams}). 인터넷 연결과 방화벽을 확인하세요(stream.binance.com, fstream.binance.com 접속 필요). 예: 브라우저에서 https://api.binance.com/api/v3/ping 열기",
+  "err.runInternal": "내부 오류가 3번 연속 발생해 감시를 종료합니다: {detail}. 로그를 확인하세요. 예: {logsDir} 폴더의 최신 로그 파일",
+  "run.connecting": "바이낸스에 연결하는 중...",
+  "run.started": "감시 중입니다. 종료하려면 Ctrl+C를 누르세요.",
+  "run.stopped": "감시를 종료했습니다. 상태를 저장했습니다.",
+  "run.connOpen": "{stream} 연결됨",
+  "run.connRetry": "{stream} 연결이 끊겼습니다. {seconds}초 뒤 다시 연결합니다 ({attempt}번째 시도)",
+  "run.noData": "다음 심볼의 데이터가 오지 않습니다: {symbols}. 심볼이 맞는지 확인하세요. 예: blert list로 확인한 뒤 blert del <ID>로 잘못된 알림 삭제",
+  "run.restarting": "내부 오류가 발생해 감시를 다시 시작합니다 ({count}/{max}): {detail}",
+  "help.cmd.run.summary": "감시 시작 (이 터미널에서 실행, 종료는 Ctrl+C)",
+  "help.cmd.run.examples": "blert run\nnpx blert run",
+  "usage.run": "blert run"
 }

@@ -22,10 +22,16 @@ export interface NotifierPort {
   soundTest(kind: SoundKind): Promise<void>;
 }
 
+/** `blert run`이 부르는 감시 실행기. runtime이 구현하고 진입점에서 연결한다 (B2). 종료 코드를 돌려준다. */
+export interface Runner {
+  run(opts: { verbose: boolean }): Promise<number>;
+}
+
 export interface Deps {
   store: Store;
   presets: PresetService;
   notifier: NotifierPort;
+  runner: Runner;
   io: Io;
 }
 

@@ -81,6 +81,11 @@ export class Notifier {
     }, this.holdMs);
   }
 
+  /** 감시 시작 같은 공지: 묶음 없이 바로 보낸다 */
+  announce(alert: Alert): void {
+    this.track(this.deliver([alert], [alert]));
+  }
+
   /** `blert test`: 묶음 없이 바로 보낸다. 소리는 설정(켬/끔)을 따른다. */
   async test(kind: SoundKind): Promise<void> {
     const alert: Alert = { ruleId: 0, kind, titleKey: 'alert.test.title', params: { kind }, firedAt: iso(this.clock.now()) };

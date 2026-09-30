@@ -1,6 +1,6 @@
 import type { Alert, Rule, SoundKind } from '../shared/types.js';
 import { baseAsset, quoteAsset } from '../shared/symbol.js';
-import { formatCompact, formatDuration, formatPct, formatPrice } from '../shared/format.js';
+import { formatCompact, formatDuration, formatExact, formatPct, formatPrice } from '../shared/format.js';
 
 /**
  * 규칙 조건을 '값 · 기준 · 방향' 하나로 줄인 측정 결과.
@@ -43,7 +43,7 @@ export function measurePrice(rule: Rule, price: number): Measurement | null {
     direction: c.direction,
     kind: c.direction === 'above' ? 'up' : 'down',
     titleKey: `alert.price.${c.direction}.title`,
-    params: { ...base(rule), target: formatPrice(c.price), price: formatPrice(price) },
+    params: { ...base(rule), target: formatExact(c.price), price: formatPrice(price) },
   };
 }
 

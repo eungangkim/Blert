@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runCli, type Deps, type NotifierPort, type PresetService } from '../../src/cli/index.js';
+import { runCli, type Deps, type NotifierPort, type PresetService, type Runner } from '../../src/cli/index.js';
 import { createPresetService } from '../../src/presets/index.js';
 import { Store } from '../../src/store/index.js';
 
@@ -11,6 +11,8 @@ export interface Harness {
   calls: string[];
   /** true로 바꾸면 다음 soundTest가 실패한다 */
   failSound: { value: boolean };
+  /** 가짜 runner가 돌려줄 종료 코드 */
+  runCode: { value: number };
   out: string[];
   err: string[];
   asked: string[];
@@ -40,6 +42,7 @@ export async function makeHarness(answers: string[] = [], presets: PresetService
   const store = new Store(dir);
   const calls: string[] = [];
   const failSound = { value: false };
+  const runCode = { value: 0 };
   const notifier: NotifierPort = {
     test: async (kind) => void calls.push(`test:${kind}`),
     soundTest: async (kind) => {
@@ -47,9 +50,16 @@ export async function makeHarness(answers: string[] = [], presets: PresetService
       if (failSound.value) throw new Error('no audio device');
     },
   };
+  const runner: Runner = {
+    run: async ({ verbose }) => {
+      calls.push(`run:${verbose}`);
+      return runCode.value;
+    },
+  };
   const deps: Deps = {
     store,
     notifier,
+    runner,
     presets: presets === 'real' ? createPresetService(store) : presets,
     io: {
       out: (t) => void out.push(t),
@@ -64,6 +74,7 @@ export async function makeHarness(answers: string[] = [], presets: PresetService
     deps,
     calls,
     failSound,
+    runCode,
     out,
     err,
     asked,

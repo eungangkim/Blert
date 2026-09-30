@@ -26,6 +26,13 @@ describe('engine 가격 (FR-ALERT-01)', () => {
     expect(r.enabled).toBe(false);
   });
 
+  it('목표가는 입력한 값 그대로 표시한다', () => {
+    const engine = new Engine();
+    engine.setRules([rule({ type: 'price', direction: 'above', price: 0.00001234 }, { kind: 'once' }, { id: 301 }), rule({ type: 'price', direction: 'above', price: 1 }, { kind: 'once' }, { id: 302, symbol: 'ETHUSDT' })]);
+    const [a, b] = fire(engine, ticker(T0, 1), ticker(T0, 5, 'spot', 'ETHUSDT'));
+    expect([a!.params.target, b!.params.target]).toEqual(['0.00001234', '1']);
+  });
+
   it('below는 이탈 시 down 종류로 발동하고, 다른 시장·심볼 이벤트는 무시한다', () => {
     const engine = new Engine();
     engine.setRules([rule({ type: 'price', direction: 'below', price: 65000 }, { kind: 'once' })]);

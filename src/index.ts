@@ -4,6 +4,7 @@ import { runCli } from './cli/index.js';
 import type { Deps, Io } from './cli/index.js';
 import { createPresetService } from './presets/index.js';
 import { createNotifier } from './notify/index.js';
+import { createRunner } from './runtime/index.js';
 import { Store } from './store/index.js';
 
 /** 질문할 때만 stdin을 연다. 입력이 끝나면 ask는 null을 돌려준다. */
@@ -45,11 +46,15 @@ function createIo(): Io & { close(): void } {
 
 const io = createIo();
 const store = new Store();
-const notifier = createNotifier({
-  out: (line) => io.out(line),
-  soundEnabled: async () => (await store.loadConfig()).soundEnabled,
+const soundEnabledForTest = async () => (await store.loadConfig()).soundEnabled;
+const notifier = createNotifier({ out: (line) => io.out(line), soundEnabled: soundEnabledForTest });
+const soundEnabled = async () => (await store.loadConfig()).soundEnabled;
+const runner = createRunner({
+  dir: store.dir,
+  io,
+  makeNotifier: (logger) => createNotifier({ out: (line) => io.out(line), soundEnabled, logger }),
 });
-const deps: Deps = { store, presets: createPresetService(store), notifier, io };
+const deps: Deps = { store, presets: createPresetService(store), notifier, runner, io };
 const code = await runCli(process.argv.slice(2), deps);
 io.close();
 process.exitCode = code;

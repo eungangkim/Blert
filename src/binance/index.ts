@@ -11,6 +11,7 @@ import { streamsOf, type StreamPlan } from './subscriptions.js';
 
 export { planSubscriptions, type StreamPlan } from './subscriptions.js';
 export type { WebSocketLike, WsFactory, ConnState } from './connection.js';
+export { retryDelayMs } from './connection.js';
 
 const LOG = 'binance';
 const MARKETS: Market[] = ['spot', 'futures'];
@@ -141,6 +142,14 @@ export class BinanceFeed {
     return MARKETS.flatMap((m) => this.feeds[m].status);
   }
 
+  /** REST 백필에서 바이낸스가 없는 심볼로 거절한 것들 (사용자 안내용) */
+  get invalidSymbols(): { market: Market; symbol: string }[] {
+    return [...this.invalid].map((key) => {
+      const [market, symbol] = key.split(':') as [Market, string];
+      return { market, symbol };
+    });
+  }
+
   // ---- 내부 ----
 
   private socket(url: string): WebSocketLike {
@@ -187,6 +196,7 @@ export class BinanceFeed {
       });
       if (this.stopped) return;
       for (const e of res.events) this.emit(e); // 실패해도 받은 데이터까지는 쓴다
+      this.opts.logger?.info(LOG, `backfill ${key}: ${res.events.length} klines${res.ok ? '' : ` (${res.reason})`}`);
       if (res.ok) this.covered.set(key, Math.max(this.covered.get(key) ?? 0, span));
       else if (res.reason === 'invalid-symbol') this.invalid.add(key);
     });
