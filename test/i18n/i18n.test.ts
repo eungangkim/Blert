@@ -29,9 +29,21 @@ describe('i18n', () => {
 
   it('NFR-UX-03 오류 메시지는 해결 방법과 예시를 담는다', () => {
     for (const [key, text] of Object.entries(ko)) {
-      if (!/(error|Timeout|TooNew|corrupt|NotFound|invalid)/i.test(key)) continue;
+      if (!/^(err|store)\./.test(key)) continue;
       expect(text, key).toMatch(/예:/);
     }
+  });
+
+  it('코드에서 문자열로 직접 쓴 메시지 키는 모두 ko.json에 있다', () => {
+    const used = new Set<string>();
+    for (const f of sourceFiles(SRC)) {
+      const code = readFileSync(f, 'utf8');
+      for (const m of code.matchAll(/\bt\('([\w.-]+)'|new BlertError\('([\w.-]+)'|(?:titleKey|messageKey): '([\w.-]+)'/g)) {
+        used.add((m[1] ?? m[2] ?? m[3])!);
+      }
+    }
+    expect(used.size).toBeGreaterThan(20);
+    expect([...used].filter((k) => !hasMessage(k))).toEqual([]);
   });
 
   it('AC-24 소스 코드(i18n 제외)의 주석 밖에 한글 문장이 없다', () => {

@@ -1,0 +1,17 @@
+import type { RepeatPolicy, RuleType } from './types.js';
+
+export const MINUTE = 60_000;
+export const HOUR = 60 * MINUTE;
+export const DAY = 24 * HOUR;
+
+/** 알림 유형별 기본 반복 정책 (B4, FR-REP-02) */
+export const DEFAULT_REPEAT: Record<RuleType, RepeatPolicy> = {
+  price: { kind: 'once' },
+  change: { kind: 'cooldown', ms: 30 * MINUTE },
+  volume: { kind: 'cooldown', ms: 15 * MINUTE },
+  funding: { kind: 'hysteresis', widthPct: 20 },
+};
+
+/** 쿨다운 허용 범위 (B4: 1분 ~ 24시간) */
+export const COOLDOWN_MIN_MS = MINUTE;
+export const COOLDOWN_MAX_MS = DAY;
