@@ -1,0 +1,6 @@
+{
+  "store.lockTimeout": "설정 파일을 다른 blert 프로세스가 사용 중입니다. 잠시 후 다시 시도하거나 실행 중인 blert를 종료하세요. 예: 다른 터미널의 `blert run`을 Ctrl+C로 종료",
+  "store.schemaTooNew": "{file}이(가) 더 새 버전의 blert로 만들어졌습니다(schemaVersion {found}). blert를 최신 버전으로 업데이트하세요. 예: npm install -g blert",
+  "store.corrupt": "{file}을(를) 읽을 수 없습니다(JSON 형식 오류). 파일을 고치거나 삭제하면 기본값으로 다시 만듭니다. 예: {path}를 삭제한 뒤 blert init 실행",
+  "store.ruleNotFound": "ID {id}에 해당하는 알림이 없습니다. `blert list --all`로 ID를 확인하세요. 예: blert del 3"
+}

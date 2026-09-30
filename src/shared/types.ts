@@ -14,3 +14,32 @@ export interface Alert {
   params: Record<string, string | number>;
   firedAt: string;
 }
+
+// B4 "유형별 조건" 구체화 (v0.1 유형만). 퍼센트 값은 5% → 5 처럼 % 단위 숫자로 저장한다.
+export type Condition =
+  | { type: 'price'; direction: 'above' | 'below'; price: number }
+  | { type: 'change'; pct: number; windowMs: number; direction: 'up' | 'down' | 'both' }
+  | { type: 'volume'; multiple: number; shortMs: number; longMs: number }
+  | { type: 'funding'; direction: 'above' | 'below'; pct: number };
+
+export type RuleType = Condition['type'];
+
+export interface Rule {
+  id: number;
+  type: RuleType;
+  market: Market;
+  symbol: string;
+  condition: Condition;
+  repeat: RepeatPolicy;
+  sound?: SoundKind | 'off';
+  name?: string;
+  source: 'manual' | `preset:${string}`;
+  enabled: boolean;
+  createdAt: string;
+}
+
+export interface RuleState {
+  ruleId: number;
+  lastFiredAt?: string;
+  armed: boolean;
+}
