@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Engine } from '../../src/engine/index.js';
-import { PriceHistory } from '../../src/engine/history.js';
+import { PriceHistory, bucketFor } from '../../src/engine/history.js';
 import { Store } from '../../src/store/index.js';
 import { EventBus } from '../../src/shared/bus.js';
 import { DEFAULT_REPEAT } from '../../src/shared/defaults.js';
@@ -121,12 +121,53 @@ describe('engine 변동률 (FR-ALERT-02)', () => {
     expect(a!.params).toMatchObject({ from: '1,000', to: '1,060', pct: '+6.0%' });
   });
 
+  it('NFR-PERF-02 창이 길면 표본 간격을 넓혀 24시간 창도 심볼당 약 3,600개만 보관하고, 판정은 그대로 동작한다', () => {
+    const engine = new Engine();
+    engine.setRules([rule({ type: 'change', pct: 5, windowMs: 24 * HOUR, direction: 'up' }, DEFAULT_REPEAT.change)]);
+    const internals = engine as unknown as { prices: Map<string, PriceHistory> };
+    let fired: Alert[] = [];
+    for (let s = 0; s <= 86_400 + 30; s++) fired = fired.concat(fire(engine, ticker(T0 + s * 1000, s < 86_400 ? 100 : 106)));
+    expect(fired.length).toBeGreaterThan(0);
+    expect(fired[0]!.params).toMatchObject({ window: '1d', from: '100.00' });
+    const h = internals.prices.get('spot:BTCUSDT')!;
+    expect(h.bucketMs).toBe(24_000);
+    expect(h.size).toBeLessThan(3_700);
+  });
+
+  it('같은 심볼에 짧은 창의 규칙이 있으면 그 규칙에 맞는 촘촘한 간격을 쓰고, 더 짧은 창이 새로 생기면 간격을 좁힌다', () => {
+    const internals = (e: Engine) => (e as unknown as { prices: Map<string, PriceHistory> }).prices.get('spot:BTCUSDT')!;
+    const engine = new Engine();
+    engine.setRules([
+      rule({ type: 'change', pct: 5, windowMs: 24 * HOUR, direction: 'both' }, DEFAULT_REPEAT.change, { id: 401 }),
+      rule({ type: 'change', pct: 5, windowMs: HOUR, direction: 'both' }, DEFAULT_REPEAT.change, { id: 402 }),
+    ]);
+    fire(engine, ticker(T0, 100));
+    expect(internals(engine).bucketMs).toBe(1000);
+
+    const second = new Engine();
+    second.setRules([rule({ type: 'change', pct: 5, windowMs: 24 * HOUR, direction: 'both' }, DEFAULT_REPEAT.change, { id: 403 })]);
+    fire(second, ticker(T0, 100));
+    expect(internals(second).bucketMs).toBe(24_000);
+    second.setRules([
+      rule({ type: 'change', pct: 5, windowMs: 24 * HOUR, direction: 'both' }, DEFAULT_REPEAT.change, { id: 403 }),
+      rule({ type: 'change', pct: 5, windowMs: HOUR, direction: 'both' }, DEFAULT_REPEAT.change, { id: 404 }),
+    ]);
+    fire(second, ticker(T0 + 1000, 100));
+    expect(internals(second).bucketMs).toBe(1000);
+  });
+
   it('가격 이력은 필요한 기간만 유지한다', () => {
     const h = new PriceHistory();
     for (let i = 0; i < 10_000; i++) h.add(T0 + i * 1000, i);
     h.trim(T0 + 9_000 * 1000);
     expect(h.size).toBeLessThan(1_100);
     expect(h.priceAt(T0 + 9_000 * 1000)).toBe(9_000);
+  });
+});
+
+describe('engine 가격 이력 표본 간격', () => {
+  it('bucketFor: 최소 1초, 창/3,600을 초 단위로 올림한다', () => {
+    expect([60_000, HOUR, 6 * HOUR, 24 * HOUR].map(bucketFor)).toEqual([1000, 1000, 6000, 24_000]);
   });
 });
 

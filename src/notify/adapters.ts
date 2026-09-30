@@ -31,25 +31,31 @@ export class ConsoleAdapter implements NotifyAdapter {
   }
 }
 
-// Windows 토스트. 제목·본문은 환경변수로 받아 스크립트에 값이 섞이지 않는다.
-// 앱 ID는 Windows PowerShell에 등록된 것을 빌린다(별도 앱 등록 없이 토스트를 띄우기 위함).
-const WIN_TOAST = `
-$ErrorActionPreference = 'Stop'
-$null = [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]
-$null = [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime]
-$title = [System.Security.SecurityElement]::Escape($env:BLERT_TITLE)
-$body = [System.Security.SecurityElement]::Escape($env:BLERT_BODY)
-$xml = New-Object Windows.Data.Xml.Dom.XmlDocument
-$xml.LoadXml("<toast><visual><binding template='ToastGeneric'><text>$title</text><text>$body</text></binding></visual><audio silent='true'/></toast>")
-$toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
-$appId = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe'
-[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($appId).Show($toast)
-`;
-export const WIN_TOAST_ENCODED = Buffer.from(WIN_TOAST, 'utf16le').toString('base64');
+// Windows 알림: .NET NotifyIcon 풍선 알림을 -Command로 실행한다 (Windows 10·11은 이를 토스트로 표시).
+// 제목·본문은 환경변수로만 받아 스크립트에 값이 섞이지 않는다(고정 문자열).
+//
+// -EncodedCommand와 WinRT(ToastNotificationManager)를 쓰는 방식은 쓰지 않는다: 실측에서 Avast가 활성인 PC는
+// 그런 PowerShell을 띄운 프로세스(감시 본체 포함)를 소리 없이 종료시켰다. 이 방식은 같은 PC에서 생존을 확인했다.
+// 풍선 제한: 제목 63자, 본문 255자.
+export const WIN_NOTIFY_SCRIPT = [
+  "$ErrorActionPreference = 'Stop'",
+  'Add-Type -AssemblyName System.Windows.Forms',
+  'Add-Type -AssemblyName System.Drawing',
+  '$n = New-Object System.Windows.Forms.NotifyIcon',
+  '$n.Icon = [System.Drawing.SystemIcons]::Information',
+  '$n.Visible = $true',
+  '$title = [string]$env:BLERT_TITLE',
+  '$body = [string]$env:BLERT_BODY',
+  'if ($title.Length -gt 63) { $title = $title.Substring(0, 63) }',
+  'if ($body.Length -gt 255) { $body = $body.Substring(0, 255) }',
+  '$n.ShowBalloonTip(5000, $title, $body, [System.Windows.Forms.ToolTipIcon]::Info)',
+  'Start-Sleep -Milliseconds 2000',
+  '$n.Dispose()',
+].join('\n');
 
 /**
- * OS 기본 알림 (FR-NOTI-01). macOS osascript, Windows PowerShell 토스트, Linux notify-send.
- * 소리는 blert가 직접 재생하므로 토스트 자체는 무음이다.
+ * OS 기본 알림 (FR-NOTI-01). macOS osascript, Windows PowerShell(NotifyIcon 풍선), Linux notify-send.
+ * 소리는 blert가 직접 재생한다.
  */
 export class DesktopAdapter implements NotifyAdapter {
   readonly name = 'desktop';
@@ -58,20 +64,23 @@ export class DesktopAdapter implements NotifyAdapter {
     private run: RunFn = runProcess,
   ) {}
 
+  /** 알림은 서로 기다리지 않고 동시에 띄운다 (프로세스 시작에 0.3초 안팎이 걸려 순서대로 하면 늦어진다) */
   async send(alerts: Alert[]): Promise<void> {
-    for (const a of alerts) {
-      const { title, body } = render(a);
-      try {
-        await this.toast(title, body);
-      } catch {
-        await this.toast(title, body); // 프로세스 생성이 가끔 일시적으로 실패한다(실측). 한 번만 다시 시도한다.
-      }
-    }
+    await Promise.all(
+      alerts.map(async (a) => {
+        const { title, body } = render(a);
+        try {
+          await this.toast(title, body);
+        } catch {
+          await this.toast(title, body); // 프로세스 생성이 가끔 일시적으로 실패한다(실측). 한 번만 다시 시도한다.
+        }
+      }),
+    );
   }
 
   private toast(title: string, body: string): Promise<void> {
     if (this.platform === 'win32') {
-      return this.run('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', WIN_TOAST_ENCODED], {
+      return this.run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', WIN_NOTIFY_SCRIPT], {
         BLERT_TITLE: title,
         BLERT_BODY: body,
       });

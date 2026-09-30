@@ -3,16 +3,25 @@ const MINUTE = 60_000;
 /** 기준 시점 앞뒤로 이 시간보다 오래된 표본은 기준 가격으로 쓰지 않는다 (감시 공백 뒤의 잘못된 비교 방지) */
 export const MAX_STALE_MS = 2 * MINUTE;
 
+/** 창 하나당 표본 수의 목표. 창이 길수록 표본 간격을 넓혀 메모리를 아낀다 (24시간 창 = 24초 간격, 약 3,600개). */
+export const SAMPLES_PER_WINDOW = 3600;
+
+/** 변동률 창(ms)에 맞는 표본 간격: 최소 1초, 창/3,600 (초 단위로 올림) */
+export function bucketFor(windowMs: number): number {
+  return Math.max(1000, Math.ceil(windowMs / SAMPLES_PER_WINDOW / 1000) * 1000);
+}
+
 /**
- * 롤링 윈도우 변동률(D-24)용 가격 이력. 1초 단위로 다운샘플링해 메모리를 아낀다:
- * 24시간이라도 심볼당 최대 86,400개 표본이다.
+ * 롤링 윈도우 변동률(D-24)용 가격 이력. 표본 간격(bucketMs)으로 다운샘플링한다.
+ * 간격이 창의 1/3,600이라 기준 가격 오차는 창의 0.03% 이하이고, 24시간 창도 심볼당 약 0.1MB면 된다
+ * (1초 간격이면 1.75MB, 30개 심볼에서 힙 52MB — 실측).
  */
 export class PriceHistory {
   private ts: number[] = [];
   private px: number[] = [];
   private head = 0;
 
-  constructor(private bucketMs = 1000) {}
+  constructor(readonly bucketMs = 1000) {}
 
   add(tsMs: number, price: number): void {
     const bucket = Math.floor(tsMs / this.bucketMs) * this.bucketMs;

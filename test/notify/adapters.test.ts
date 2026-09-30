@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEFAULT_SOUND_DIR, DesktopAdapter, SoundAdapter, WIN_TOAST_ENCODED, pickSound } from '../../src/notify/adapters.js';
+import { DEFAULT_SOUND_DIR, DesktopAdapter, SoundAdapter, WIN_NOTIFY_SCRIPT, pickSound } from '../../src/notify/adapters.js';
 import type { Alert } from '../../src/shared/types.js';
 
 const alert = (extra: Partial<Alert> = {}): Alert => ({
@@ -13,18 +13,24 @@ const alert = (extra: Partial<Alert> = {}): Alert => ({
 const hostile = alert({ params: { coin: `"; $(calc) \`x\` '`, quote: 'USDT', market: 'spot', target: '1', price: '1' } });
 
 describe('DesktopAdapter (FR-NOTI-01)', () => {
-  it('Windows: PowerShell 토스트를 인코딩된 스크립트로 실행하고 제목·본문은 환경변수로만 넘긴다', async () => {
+  it('Windows: 고정된 PowerShell 스크립트를 -Command로 실행하고 제목·본문은 환경변수로만 넘긴다', async () => {
     const run = vi.fn(async () => {});
     await new DesktopAdapter('win32', run).send([hostile]);
     const [cmd, args, env] = run.mock.calls[0] as unknown as [string, string[], Record<string, string>];
     expect(cmd).toBe('powershell.exe');
-    expect(args).toEqual(['-NoProfile', '-NonInteractive', '-EncodedCommand', WIN_TOAST_ENCODED]);
+    expect(args).toEqual(['-NoProfile', '-NonInteractive', '-Command', WIN_NOTIFY_SCRIPT]);
     expect(env.BLERT_TITLE).toContain('$(calc)'); // 값 그대로, 스크립트에는 섞이지 않음
     expect(env.BLERT_BODY).toBe('현재 1 USDT · 현물');
-    const script = Buffer.from(WIN_TOAST_ENCODED, 'base64').toString('utf16le');
-    expect(script).toContain('CreateToastNotifier');
-    expect(script).toContain("silent='true'"); // 소리는 blert가 직접 재생
-    expect(script).not.toContain('calc');
+    expect(WIN_NOTIFY_SCRIPT).toContain('ShowBalloonTip');
+    expect(WIN_NOTIFY_SCRIPT).not.toContain('calc');
+  });
+
+  it('Windows: 보안 프로그램이 감시 본체를 종료시킨 패턴(-EncodedCommand, WinRT 토스트)을 쓰지 않는다', async () => {
+    const run = vi.fn(async () => {});
+    await new DesktopAdapter('win32', run).send([alert()]);
+    const args = (run.mock.calls[0] as unknown as [string, string[]])[1];
+    expect(args.join(' ')).not.toMatch(/EncodedCommand/i);
+    expect(WIN_NOTIFY_SCRIPT).not.toMatch(/WindowsRuntime|ToastNotificationManager|XmlDocument/);
   });
 
   it('macOS: osascript에 제목·본문을 별도 인자로 넘긴다', async () => {
@@ -45,7 +51,7 @@ describe('DesktopAdapter (FR-NOTI-01)', () => {
     expect(run.mock.calls[0]).toEqual(['notify-send', ['--app-name=blert', '--', 'blert 테스트 알림', '--x 알림입니다. 이 알림이 보이면 정상입니다.']]);
   });
 
-  it('여러 건이면 순서대로 각각 표시한다', async () => {
+  it('여러 건은 서로 기다리지 않고 각각 표시한다', async () => {
     const run = vi.fn(async () => {});
     await new DesktopAdapter('linux', run).send([alert(), alert()]);
     expect(run).toHaveBeenCalledTimes(2);

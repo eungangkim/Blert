@@ -4,7 +4,7 @@ import type { EventBus } from '../shared/bus.js';
 import type { Logger } from '../shared/logger.js';
 import { iso } from '../shared/clock.js';
 import type { Store } from '../store/index.js';
-import { MinuteVolumes, PriceHistory, MAX_STALE_MS } from './history.js';
+import { MinuteVolumes, PriceHistory, MAX_STALE_MS, bucketFor } from './history.js';
 import { measureChange, measureFunding, measurePrice, measureVolume, rearmed, satisfied, toAlert, type Measurement } from './measure.js';
 
 const MINUTE = 60_000;
@@ -30,6 +30,8 @@ export class Engine {
   private prices = new Map<string, PriceHistory>();
   private volumes = new Map<string, MinuteVolumes>();
   private priceRetention = new Map<string, number>();
+  /** 심볼별 가격 표본 간격: 그 심볼에서 가장 짧은 변동률 창 기준 */
+  private priceBucket = new Map<string, number>();
   private volumeRetention = new Map<string, number>();
   private pending: Promise<unknown> = Promise.resolve();
   private emit: (alert: Alert) => void = () => {};
@@ -57,13 +59,17 @@ export class Engine {
 
     this.byKey.clear();
     this.priceRetention.clear();
+    this.priceBucket.clear();
     this.volumeRetention.clear();
     for (const r of rules) {
       if (!r.enabled) continue;
       const key = keyOf(r.market, r.symbol);
       (this.byKey.get(key) ?? this.byKey.set(key, []).get(key)!).push(r);
       const c = r.condition;
-      if (c.type === 'change') this.priceRetention.set(key, Math.max(this.priceRetention.get(key) ?? 0, c.windowMs + MAX_STALE_MS));
+      if (c.type === 'change') {
+        this.priceRetention.set(key, Math.max(this.priceRetention.get(key) ?? 0, c.windowMs + MAX_STALE_MS));
+        this.priceBucket.set(key, Math.min(this.priceBucket.get(key) ?? Infinity, bucketFor(c.windowMs)));
+      }
       if (c.type === 'volume') this.volumeRetention.set(key, Math.max(this.volumeRetention.get(key) ?? 0, c.longMs + 2 * MINUTE));
     }
     for (const key of [...this.prices.keys()]) if (!this.priceRetention.has(key)) this.prices.delete(key);
@@ -230,7 +236,13 @@ export class Engine {
   }
 
   private history(key: string): PriceHistory {
-    return this.prices.get(key) ?? this.prices.set(key, new PriceHistory()).get(key)!;
+    const bucket = this.priceBucket.get(key) ?? 1000;
+    const current = this.prices.get(key);
+    // 더 짧은 창의 규칙이 생겨 지금 간격이 너무 성기면 새로 시작한다 (모자란 이력은 백필·수집으로 다시 쌓인다)
+    if (current && current.bucketMs <= bucket) return current;
+    const fresh = new PriceHistory(bucket);
+    this.prices.set(key, fresh);
+    return fresh;
   }
 
   private volumesOf(key: string): MinuteVolumes {
