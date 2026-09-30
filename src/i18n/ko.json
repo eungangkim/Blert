@@ -130,5 +130,18 @@
   "init.presetNone": "  0) 설치하지 않음",
   "init.askPresetNumber": "번호 입력 (기본 0): ",
   "init.done": "초기 설정을 마쳤습니다. 프리셋으로 알림 {count}개를 등록했습니다.",
-  "init.next": "다음 단계:\n  blert test   알림이 뜨는지 확인\n  blert run    감시 시작"
+  "init.next": "다음 단계:\n  blert test   알림이 뜨는지 확인\n  blert run    감시 시작",
+
+  "alert.price.above.title": "{coin} {target} 돌파",
+  "alert.price.above.body": "현재 {price} {quote} · {market}",
+  "alert.price.below.title": "{coin} {target} 이탈",
+  "alert.price.below.body": "현재 {price} {quote} · {market}",
+  "alert.change.title": "{coin} {window} {pct}",
+  "alert.change.body": "{from} → {to} {quote} · {market}",
+  "alert.volume.title": "{coin} 거래량 {ratio}배 급증",
+  "alert.volume.body": "{short} 거래대금 {shortVol} {quote} ({long} 평균 {avgVol})",
+  "alert.funding.above.title": "{coin} 선물 펀딩비 {rate}",
+  "alert.funding.above.body": "기준 {threshold} 초과",
+  "alert.funding.below.title": "{coin} 선물 펀딩비 {rate}",
+  "alert.funding.below.body": "기준 {threshold} 미만"
 }

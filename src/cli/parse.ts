@@ -1,12 +1,11 @@
 import { BlertError } from '../shared/errors.js';
 import type { Market, RepeatPolicy } from '../shared/types.js';
 import { COOLDOWN_MAX_MS, COOLDOWN_MIN_MS } from '../shared/defaults.js';
+import { STABLE_QUOTES } from '../shared/symbol.js';
 import { suggest } from './suggest.js';
 
-// 스테이블 견적 통화만 전체 심볼로 인식한다. 그 외는 뒤에 USDT를 붙인다 (D-21).
-// WBTC 같은 코인명이 견적 통화로 오인되지 않게 하려는 제한이다.
-const STABLE_QUOTES = ['USDT', 'USDC', 'FDUSD', 'BUSD', 'TUSD'];
 
+/** 스테이블 견적으로 끝나면 전체 심볼, 아니면 뒤에 USDT를 붙인다 (D-21) */
 export function parseSymbol(raw: string): { market: Market; symbol: string } {
   const futures = /^f:/i.test(raw);
   const body = (futures ? raw.slice(2) : raw).toUpperCase();

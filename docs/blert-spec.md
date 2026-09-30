@@ -131,6 +131,7 @@ Sep 30, 2026 · @김은강
 | D-30 | 키체인 없는 환경 | 계정 기능 비활성, 공개 알림만 | 보안 원칙 유지 | 2026-09-30 |
 | D-31 | 기술 기본값 | Part B에 적힌 수치·규칙 기본값 일괄 승인 | 구현 착수 가능 상태 확보 | 2026-09-30 |
 | D-32 | 목표 날짜 | v0.1은 2026-10-07, v0.2는 2026-10-21. 이후는 v0.2 완료 후 산정. 하루 5시간 기준 | v0.1은 공개 데이터라 1주 가능, 보안 기능은 여유 있게 | 2026-09-30 |
+| D-33 | 거래량·변동률 데이터 | 1분봉(`kline_1m`) 스트림을 구독하고, 시작·재연결 직후 REST로 필요한 구간의 1분봉을 백필한다 (D-25 보완) | 24시간 롤링 티커로는 짧은 구간 거래대금과 과거 가격을 알 수 없고, 백필이 없으면 시작 후 최대 24시간 동안 판정이 불가 | 2026-09-30 |
 
 ## A4. 기능 요구사항
 
@@ -312,6 +313,7 @@ blert/
 | 이벤트 | 발행 | 구독 | 내용 | 버전 |
 | --- | --- | --- | --- | --- |
 | `market.ticker` | binance | engine | market, symbol, price, quoteVolume | v0.1 |
+| `market.kline` | binance | engine | market, symbol, openTime, close, quoteVolume, closed (1분봉. 백필 데이터도 같은 이벤트로 발행) | v0.1 |
 | `market.funding` | binance | engine | symbol, rate, nextFundingTime | v0.1 |
 | `account.fill` | binance | engine | market, symbol, side, qty, price, orderId | v0.2 |
 | `account.balance` | binance | engine | asset, free, locked | v0.2 |
@@ -325,6 +327,7 @@ blert/
 ```ts
 type BlertEvent =
   | { type: 'market.ticker'; ts: string; market: Market; symbol: string; price: number; quoteVolume: number }
+  | { type: 'market.kline'; ts: string; market: Market; symbol: string; openTime: string; close: number; quoteVolume: number; closed: boolean }
   | { type: 'market.funding'; ts: string; symbol: string; rate: number; nextFundingTime: string }
   | { type: 'rule.fired'; ts: string; alert: Alert }
   | { type: 'rules.changed'; ts: string; ruleIds: number[] }
@@ -498,8 +501,8 @@ interface RuleState {        // 규칙과 분리해 저장 (B8)
 
 | 연결 | 용도 | 인증 | 버전 |
 | --- | --- | --- | --- |
-| 현물 공개 스트림 | 가격, 변동률, 거래량 | 없음 | v0.1 |
-| 선물 공개 스트림 | 가격, 변동률, 거래량, 펀딩비 | 없음 | v0.1 |
+| 현물 공개 스트림 | 가격(티커), 변동률·거래량(1분봉 `kline_1m`) | 없음 | v0.1 |
+| 선물 공개 스트림 | 가격(티커), 변동률·거래량(1분봉 `kline_1m`), 펀딩비 | 없음 | v0.1 |
 | 현물 WebSocket API 사용자 데이터 | 체결, 잔고 | Ed25519 서명 (D-16) | v0.2 |
 | 선물 사용자 데이터 | 포지션, 주문 | Ed25519, 방식은 Q-01 결과에 따름 | v0.3 |
 | REST | 권한 검사, 재연결 후 보충 조회 | Ed25519 서명 | v0.2 |
@@ -509,6 +512,7 @@ interface RuleState {        // 규칙과 분리해 저장 (B8)
 | 상황 | 동작 | 값 |
 | --- | --- | --- |
 | 24시간 연결 만료 | 만료 전에 새 연결을 열고 옮긴 뒤 기존 연결 종료 | 만료 10분 전 |
+| 시작·재연결 직후 (공개) | 변동률·거래량 규칙에 필요한 구간(최대 24시간 + 여유 2분)의 1분봉을 REST로 백필하고 이후 스트림으로 이어 붙인다 (D-33) | 규칙이 필요로 하는 최대 구간 |
 | 연결 끊김 | 지수 백오프로 무한 재시도, 상태를 콘솔에 표시 | 1초 → 최대 60초 |
 | 장시간 끊김 | 사용자에게 경고 알림 | 5분 초과 시 |
 | 재연결 후 (계정) | 끊긴 구간의 체결·잔고를 REST로 보충 조회 | v0.2 |

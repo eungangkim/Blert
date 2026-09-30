@@ -1,12 +1,6 @@
 import type { Condition, RepeatPolicy, Rule } from '../shared/types.js';
+import { formatDuration } from '../shared/format.js';
 import { t } from '../i18n/index.js';
-
-export function formatDuration(ms: number): string {
-  for (const [unit, size] of [['d', 86_400_000], ['h', 3_600_000], ['m', 60_000], ['s', 1000]] as const) {
-    if (ms % size === 0) return `${ms / size}${unit}`;
-  }
-  return `${ms}ms`;
-}
 
 export function describeCondition(c: Condition): string {
   switch (c.type) {
