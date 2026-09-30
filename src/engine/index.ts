@@ -148,6 +148,11 @@ export class Engine {
     if (this.volumeRetention.has(key)) this.volumesOf(key).set(open, e.quoteVolume);
     if (e.closed && this.priceRetention.has(key)) this.history(key).add(open + MINUTE - 1, e.close);
 
+    // 백필한 과거 봉은 이력만 채운다. 지금 진행 중인 분의 봉만 판정해서 과거 급증을 새 알림으로 내지 않는다.
+    if (Math.floor(ts / MINUTE) * MINUTE !== Math.floor(open / MINUTE) * MINUTE) {
+      this.trim(key, ts);
+      return [];
+    }
     const alerts: Alert[] = [];
     const vols = this.volumes.get(key);
     if (vols) {
