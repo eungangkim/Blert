@@ -1,0 +1,21 @@
+{
+  "name": "blert",
+  "version": "0.1.0",
+  "description": "바이낸스 현물·선물 알림을 명령어로 설정하고 내 PC에서 받는 로컬 CLI",
+  "type": "module",
+  "bin": { "blert": "dist/index.js" },
+  "files": ["dist", "assets"],
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "dev": "tsx src/index.ts"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "24.19.0",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vitest": "5.0.2"
+  }
+}
