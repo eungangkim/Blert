@@ -137,6 +137,12 @@ Sep 30, 2026 · @김은강
 | D-36 | 고지 동의 전 실행 | 고지 동의 기록이 없으면 `run`을 거부하고 `blert init`을 안내한다. `add`·`list` 등은 허용한다 | NFR-LEGAL-01 | 2026-10-01 |
 | D-37 | 일부 시장만 연결될 때 | 필요한 시장 중 일부만 연결돼도 시작하고, 감시하지 못하는 규칙 수를 알린 뒤 계속 재시도한다. 필요한 시장이 모두 연결되지 못할 때만 종료 코드 3 | 한쪽 서버만 막힌 환경에서도 나머지를 감시하고, 놓치는 부분은 반드시 알린다 | 2026-10-01 |
 | D-38 | 소스 라이선스 | MIT. 번들 음원은 CC0 (D-11) | 단순하고 널리 쓰이며 무보증 조항이 NFR-LEGAL-01 고지와 맞음 | 2026-10-01 |
+| D-39 | 네트워크 모드 | 기본은 실서버. 환경변수 `BLERT_NETWORK=testnet`을 켠 개발자만 테스트넷(`testnet.binance.vision`, `ws-api.testnet.binance.vision`)에 연결한다. 이 모드에서는 허용 호스트가 테스트넷으로 바뀌고, 테스트넷이 `/sapi`를 지원하지 않으므로 권한 검사를 건너뛰며, `key`·`run` 출력 맨 위에 배너를 표시한다. 알 수 없는 값은 오류. 문서화된 사용자 기능이 아니라 AC-31~33 검증용 | B11이 계정 기능을 테스트넷으로만 검증하도록 정함. 실서버 키로 시험하는 사고를 막는다 | 2026-10-02 |
+| D-40 | 키 입력 방식 | `blert key add`는 API 키 문자열과 개인키 PEM **파일 경로**를 프롬프트로 받는다. 키·경로를 명령행 인자로 받지 않는다. 저장은 키체인에 `{apiKey, privateKeyPem}` 한 항목, `config.json`에는 참조 이름 `keyRef`만 둔다. 등록 후 원본 PEM 파일 삭제를 안내한다 | 셸 기록·프로세스 목록에 키가 남지 않게 함. 바이낸스가 개인키를 파일로 만든다 | 2026-10-02 |
+| D-41 | 읽기 전용 키 판정 | 허용 목록 방식: 권한 응답에서 켜져 있어도 되는 항목은 `enableReading`, `enableFixReadOnly`, `ipRestrict`뿐이다. 그 밖에 `true`인 항목은 모두 거부(출금은 출금으로, 나머지는 거래 계열로 안내), `enableReading`이 `true`가 아니면 거부한다. 응답 형식이 이상하면 거부가 아니라 확인 불가(재시도)로 본다. 바이낸스가 항목을 새로 추가해도 안전한 쪽으로 동작한다. **실서버 읽기 전용 키로 실측해 목록을 조정할 수 있다 (Q-09)** | 거래·출금 권한 키가 우연히 통과하는 것을 막는다(FR-KEY-02) | 2026-10-02 |
+| D-42 | 키 거부 판정과 계정 연결 중단 | 바이낸스 응답 코드 -2008·-2014·-2015·-1022 또는 HTTP 401·403은 "이 키로는 안 된다"로 본다(실서버에서 존재하지 않는 키는 HTTP 400 `-2008`로 확인). 로그인(`session.logon`) 직후 응답 없이 연결이 끊기는 것이 3번 연속이면 키를 쓸 수 없는 것으로 보고 계정 기능을 멈춘다(실서버가 쓸 수 없는 키에 하는 동작). 멈출 때는 이유를 알림으로 알리고 공개 알림은 유지한다 | 로그에만 남으면 사용자가 계정 알림이 죽은 줄 모른다 (NFR-REL-02) | 2026-10-02 |
+| D-43 | 계정 규칙 표현 | 계정 규칙(`fill`, `balance`)의 `symbol`은 `*`로 "전체"를 뜻할 수 있다. 반복 정책에 `each`(이벤트마다)를 추가하고 체결의 기본값으로 쓴다. 현물만 지원하며 선물 `fill`은 거부한다 | 체결은 이벤트마다 1회라는 B4 표를 타입으로 표현 | 2026-10-02 |
+| D-44 | 계정 연결 재인증과 체결 보충 | 재연결 시도마다 키를 다시 꺼내 권한을 확인한 뒤 로그인한다(FR-KEY-04). 권한 조회가 일시적으로 실패하면 연결하지 않고 다시 시도한다. 재연결 후에는 마지막 생존 시각 60초 전부터의 체결을 `myTrades`로 보충하고 `심볼:체결ID`로 중복을 제거한다. 보충 대상 심볼은 체결 규칙의 심볼, 그리고 전체 규칙이면 보유 자산의 USDT 쌍과 이번 실행에서 체결이 있던 심볼이다. 상태 확인(`session.status`)은 60초마다, 15초 안에 응답이 없으면 끊김으로 본다. 23시간 50분에 선제 재연결 | 권한이 중간에 바뀌는 것을 잡고, 끊긴 구간의 체결을 놓치지 않는다 (AC-30, AC-33) | 2026-10-02 |
 
 ## A4. 기능 요구사항
 
@@ -247,6 +253,7 @@ Sep 30, 2026 · @김은강
 | ID | 질문 | 영향 범위 | 해결 시점 | 상태 |
 | --- | --- | --- | --- | --- |
 | Q-08 | 버전별 목표 날짜 | A7 | v0.1 착수 전 | 해결 → D-32 |
+| Q-09 | 실서버 읽기 전용 키의 권한 응답에서 기본으로 켜져 있는 항목이 허용 목록(D-41)을 넘는가 | D-41, FR-KEY-02 | v0.2 마감 전 (실서버 읽기 전용 키로 `blert key check` 1회) | 미결 |
 | Q-01 | 읽기 전용 키로 선물 계정·포지션 조회가 되는가. 안 되면 선물 계정 알림 제외 / 선물 한정 예외 / 수동 입력 방식 중 선택 | D-03, FR-ACC-03, FR-ALERT-05 | v0.3 착수 전 (테스트 키로 확인) | 미결 |
 | Q-02 | 키 타입 | B5, B6 | — | 해결 → D-16 |
 | Q-03 | 서비스 이름 | 배포, 명령어 | — | 해결 → D-13 |
@@ -263,6 +270,7 @@ Sep 30, 2026 · @김은강
 - [x] Q-06 영어 지원
 - [x] Q-07 설정 파일 형식
 - [x] Q-08 버전별 목표 날짜
+- [ ] Q-09 읽기 전용 키 권한 응답 실측 (v0.2 마감 전)
 
 # Part B. 설계서
 
@@ -322,14 +330,14 @@ blert/
 | `market.ticker` | binance | engine | market, symbol, price, quoteVolume | v0.1 |
 | `market.kline` | binance | engine | market, symbol, openTime, close, quoteVolume, closed (1분봉. 백필 데이터도 같은 이벤트로 발행) | v0.1 |
 | `market.funding` | binance | engine | symbol, rate, nextFundingTime | v0.1 |
-| `account.fill` | binance | engine | market, symbol, side, qty, price, orderId | v0.2 |
+| `account.fill` | binance | engine | market, symbol, side, qty, price, orderId, tradeId (중복 제거용) | v0.2 |
 | `account.balance` | binance | engine | asset, free, locked | v0.2 |
 | `account.position` | binance | engine | symbol, side, size, entryPrice, liqPrice | v0.3 |
 | `rule.fired` | engine | notify | B7의 `Alert` | v0.1 |
 | `rules.changed` | store | binance, engine | 바뀐 규칙 ID 목록 (구독 목록 갱신용) | v0.1 |
 | `conn.status` | binance | runtime, notify | stream, state(connecting·open·retrying·closed), attempt | v0.1 |
 | `conn.gap` | runtime, binance | notify | from, to, reason(sleep·disconnect·exit), ongoing? (5분 넘게 이어지는 끊김의 경고. 없으면 끝난 구간. exit는 이전 실행의 비정상 종료) | v0.1 |
-| `key.denied` | security | runtime, notify | reason(trade·withdraw·hmac·no-keychain) | v0.2 |
+| `key.denied` | runtime | notify | reason(trade·withdraw·hmac·no-keychain), fields? (문제가 된 권한 이름) | v0.2 |
 
 ```ts
 type BlertEvent =
@@ -430,13 +438,14 @@ type Market = 'spot' | 'futures';
 type RepeatPolicy =
   | { kind: 'once' }
   | { kind: 'cooldown'; ms: number }          // 1분 ~ 24시간
-  | { kind: 'hysteresis'; widthPct: number }; // 기준값 대비 %
+  | { kind: 'hysteresis'; widthPct: number }  // 기준값 대비 %
+  | { kind: 'each' };                         // 이벤트마다 (체결, D-43)
 
 interface Rule {
   id: number;
   type: 'price' | 'change' | 'volume' | 'funding' | 'fill' | 'balance' | 'liq';
   market: Market;
-  symbol: string;            // 정규화된 전체 심볼, 예: BTCUSDT
+  symbol: string;            // 정규화된 전체 심볼, 예: BTCUSDT. 계정 규칙은 '*'(전체) 가능 (D-43)
   condition: Condition;      // 유형별 조건 (아래 표)
   repeat: RepeatPolicy;
   sound?: 'up' | 'down' | 'account' | 'warn' | 'off';
@@ -461,7 +470,7 @@ interface RuleState {        // 규칙과 분리해 저장 (B8)
 | change | 퍼센트, 기간, 방향 | 롤링 윈도우: 현재가를 (현재 − 기간) 시점 가격과 비교. 기간만큼의 가격 이력을 메모리에 유지 | D-24 |
 | volume | 배수, 짧은 구간, 긴 구간 | 짧은 구간 거래대금 ÷ (긴 구간 거래대금을 짧은 구간 단위로 나눈 평균) ≥ 배수 | D-25 |
 | funding | 방향, 퍼센트 | 예상 펀딩비가 기준을 넘는 순간(미충족 → 충족). 시작 시 이미 초과 중이면 알리지 않는다. 기준과 같은 값은 초과가 아니다 | FR-ALERT-04, D-34 |
-| fill | 심볼 또는 all | 주문 체결 이벤트 수신 시 | FR-ACC-01 |
+| fill | 심볼 또는 all | 주문 체결 이벤트 수신 시. 현물만 (D-43) | FR-ACC-01 |
 | balance | 자산, 퍼센트 | 마지막 알림 시점 대비 잔고가 퍼센트 이상 변동 | D-27 |
 | liq | 퍼센트 | 현재가와 청산가 거리가 퍼센트 이하 (Q-01 결과 반영) | FR-ALERT-05 |
 
@@ -512,7 +521,7 @@ interface RuleState {        // 규칙과 분리해 저장 (B8)
 | 선물 공개 스트림 | 가격(티커), 변동률·거래량(1분봉 `kline_1m`), 펀딩비 | 없음 | v0.1 |
 | 현물 WebSocket API 사용자 데이터 | 체결, 잔고 | Ed25519 서명 (D-16) | v0.2 |
 | 선물 사용자 데이터 | 포지션, 주문 | Ed25519, 방식은 Q-01 결과에 따름 | v0.3 |
-| REST | 권한 검사, 재연결 후 보충 조회 | Ed25519 서명 | v0.2 |
+| REST | 권한 검사(`GET /sapi/v1/account/apiRestrictions`, 실서버만), 재연결 후 보충 조회(`/api/v3/account`, `/api/v3/myTrades`) | Ed25519 서명 | v0.2 |
 
 ### 연결 생명주기
 
@@ -522,7 +531,7 @@ interface RuleState {        // 규칙과 분리해 저장 (B8)
 | 시작·재연결 직후 (공개) | 변동률·거래량 규칙에 필요한 구간(최대 24시간 + 여유 2분)의 1분봉을 REST로 백필하고 이후 스트림으로 이어 붙인다 (D-33) | 규칙이 필요로 하는 최대 구간 |
 | 연결 끊김 | 지수 백오프로 무한 재시도, 상태를 콘솔에 표시 | 1초 → 최대 60초 |
 | 장시간 끊김 | 사용자에게 경고 알림 | 5분 초과 시 |
-| 재연결 후 (계정) | 끊긴 구간의 체결·잔고를 REST로 보충 조회 | v0.2 |
+| 재연결 후 (계정) | 끊긴 구간의 체결·잔고를 REST로 보충 조회 (D-44) | v0.2 |
 | 규칙 변경 | 필요한 심볼만 구독하도록 구독 목록 갱신 | 즉시 |
 | 레이트 리밋 응답 | 응답의 대기 시간만큼 멈춘 뒤 재시도, 반복되면 경고 | — |
 
@@ -538,7 +547,7 @@ interface RuleState {        // 규칙과 분리해 저장 (B8)
 | 위협 | 대책 | 요구사항 |
 | --- | --- | --- |
 | 평문 설정 파일 유출 | 키·시크릿은 OS 키체인에만 저장, 설정 파일에는 참조 이름만 | FR-KEY-01, NFR-SEC-01 |
-| 과도한 키 권한 | 시작 시와 재연결 시 권한을 조회해 거래·출금 권한이 있으면 실행 거부 | FR-KEY-02, FR-KEY-04 |
+| 과도한 키 권한 | 시작 시와 재연결 시도마다 권한을 조회해 허용 목록 밖의 권한이 켜져 있으면(D-41) 실행 거부 | FR-KEY-02, FR-KEY-04 |
 | IP 제한 없는 키 | 실행은 허용하되 매번 경고 | FR-KEY-03 |
 | 약한 키 방식 | Ed25519 키만 등록 허용, HMAC 키는 등록 단계에서 거부하고 생성 방법 안내 | D-16 |
 | 로그·오류 메시지 노출 | 로거에서 키 형태 문자열 마스킹 | NFR-SEC-01 |
@@ -551,7 +560,7 @@ interface RuleState {        // 규칙과 분리해 저장 (B8)
 2. 바이낸스에 키 권한 설정을 조회한다.
 3. 거래·출금 권한이 켜져 있으면 어떤 권한이 문제인지와 바이낸스에서 끄는 방법을 안내하고 종료 코드 2로 끝낸다.
 4. IP 제한이 없으면 경고를 표시하고 계속한다.
-5. 재연결할 때마다 2\~4를 반복한다. 실행 중 권한 초과가 발견되면 계정 기능만 멈추고 공개 알림은 유지한다.
+5. 권한 조회는 BLERT_NETWORK=testnet에서는 건너뛴다(D-39). 재연결할 때마다 2\~4를 반복한다. 실행 중 권한 초과가 발견되면 계정 기능만 멈추고 공개 알림은 유지한다.
 
 ### 키체인을 쓸 수 없는 환경 (D-30)
 
@@ -559,8 +568,9 @@ interface RuleState {        // 규칙과 분리해 저장 (B8)
 
 ### 구현 시 정할 것
 
-- [ ] 키체인 라이브러리 선정 (유지보수 상태 확인, 의존성 승인 필요)
-- [ ] 허용 권한 목록의 정확한 정의 (Q-01 결과 반영)
+- [x] 키체인 라이브러리: `@napi-rs/keyring` 2.1.0 (버전 고정, 필요할 때만 불러온다)
+- [x] 허용 권한 목록: D-41 (실서버 실측은 Q-09)
+- [ ] 선물 권한의 허용 여부 (Q-01 결과, v0.3)
 
 ## B7. 알림 출력
 
@@ -636,7 +646,7 @@ interface NotifyAdapter {
 
 | 데이터 | 파일 | 내용 | 버전 |
 | --- | --- | --- | --- |
-| 전역 설정 | `config.json` | 사운드 on/off, 언어, 실행 모드, 고지 동의 여부 | v0.1 |
+| 전역 설정 | `config.json` | 사운드 on/off, 언어, 실행 모드, 고지 동의 여부, 키 참조 이름 `keyRef`(v0.2) | v0.1 |
 | 알림 규칙 | `rules.json` | B4의 `Rule` 목록 | v0.1 |
 | 알림 상태 | `state.json` | B4의 `RuleState` 목록 | v0.1 |
 | 설치된 프리셋 | `config.json` 안 | 프리셋 슬러그와 버전 | v0.1 |
