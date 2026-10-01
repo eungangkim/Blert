@@ -272,5 +272,20 @@
   "alert.fill.title": "{coin} {side} 체결",
   "alert.fill.body": "{qty} {coin} @ {price} {quote}",
   "alert.balance.title": "{asset} 잔고 {pct}",
-  "alert.balance.body": "{from} → {to} {asset}"
+  "alert.balance.body": "{from} → {to} {asset}",
+  "alert.key.trade.title": "계정 알림 중단 — 거래 권한이 켜진 키",
+  "alert.key.trade.body": "켜진 권한: {fields} · 바이낸스에서 읽기 권한만 남기고 다시 등록하세요(blert key add) · 공개 알림은 계속됩니다",
+  "alert.key.withdraw.title": "계정 알림 중단 — 출금 권한이 켜진 키",
+  "alert.key.withdraw.body": "켜진 권한: {fields} · 바이낸스에서 읽기 권한만 남기고 다시 등록하세요(blert key add) · 공개 알림은 계속됩니다",
+  "alert.key.hmac.title": "계정 알림 중단 — 쓸 수 없는 키 형식",
+  "alert.key.hmac.body": "Ed25519 키만 쓸 수 있습니다 · blert key add로 다시 등록하세요 · 공개 알림은 계속됩니다",
+  "alert.key.no-keychain.title": "계정 알림 중단 — OS 키체인 없음",
+  "alert.key.no-keychain.body": "키는 키체인에만 저장합니다(Linux는 Secret Service 필요) · 공개 알림은 계속됩니다",
+  "alert.account.nokey.title": "계정 알림 {count}개를 감시하지 못합니다",
+  "alert.account.nokey.body": "API 키가 없습니다 · blert key add로 읽기 전용 키를 등록하세요 · 공개 알림은 계속됩니다",
+  "alert.account.rejected.title": "계정 알림 중단 — 바이낸스가 키를 거부",
+  "alert.account.rejected.body": "{detail} · 키와 허용 IP를 확인하세요 · 공개 알림은 계속됩니다",
+  "alert.account.ipwarn.title": "허용 IP 제한이 없는 키",
+  "alert.account.ipwarn.body": "키가 유출되면 어디서든 읽을 수 있습니다 · 바이낸스 API 관리에서 허용 IP를 설정하세요",
+  "run.testnetBanner": "[테스트넷 모드] BLERT_NETWORK=testnet — 개발자 전용입니다. 계정 데이터는 테스트넷에서 받고, 키 권한 검사는 건너뜁니다. 실서버 키에는 쓰지 마세요."
 }

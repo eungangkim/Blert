@@ -65,6 +65,7 @@ export class Notifier {
       bus.on('rule.fired', (e) => this.notify(e.alert)),
       bus.on('conn.status', (e) => void this.status.set(e.stream, { state: e.state, attempt: e.attempt })),
       bus.on('conn.gap', (e) => this.notify(this.gapAlert(e))),
+      bus.on('key.denied', (e) => this.notify(this.keyAlert(e))),
     ];
     return () => offs.forEach((off) => off());
   }
@@ -158,6 +159,11 @@ export class Notifier {
     this.warned.add(name);
     const guide = t(`notify.guide.${name}.${platformGroup(this.opts.platform)}`);
     this.opts.warn(t(`notify.${name}Failed`, { reason, guide }));
+  }
+
+  /** 키 때문에 계정 기능을 쓸 수 없을 때. 공개 알림은 계속된다는 것까지 알린다 (FR-KEY-02, FR-KEY-04, D-30) */
+  private keyAlert(e: { reason: string; fields?: string[]; ts: string }): Alert {
+    return { ruleId: 0, kind: 'warn', titleKey: `alert.key.${e.reason}.title`, params: { fields: (e.fields ?? []).join(', ') }, firedAt: e.ts };
   }
 
   private gapAlert(e: { from: string; to: string; ongoing?: boolean }): Alert {

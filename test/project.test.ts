@@ -106,7 +106,7 @@ describe('수용 기준 커버리지 (CLAUDE.md 테스트 규칙)', () => {
 
   it('AC-01 ~ AC-24와 AC-26 ~ AC-34는 이름이 해당 ID로 시작하는 자동 테스트가 하나 이상 있다 (AC-25는 수동)', () => {
     // v0.2 작업 중 아직 구현하지 않은 항목. 구현하면 여기서 지운다 (마지막 단계에서 비어 있어야 한다).
-    const PENDING = ['AC-29', 'AC-30'];
+    const PENDING: string[] = [];
     const ids = Array.from({ length: 34 }, (_, i) => i + 1)
       .filter((n) => n !== 25)
       .map((n) => `AC-${String(n).padStart(2, '0')}`)

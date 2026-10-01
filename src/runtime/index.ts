@@ -3,11 +3,13 @@ import { BlertError, ExitCode, type ExitCodeValue } from '../shared/errors.js';
 import { EventBus } from '../shared/bus.js';
 import { iso, systemClock, type Clock } from '../shared/clock.js';
 import { Logger, mask } from '../shared/logger.js';
-import type { Alert, Market } from '../shared/types.js';
+import type { Alert, Market, Rule } from '../shared/types.js';
+import type { NetworkMode } from '../shared/network.js';
 import { t } from '../i18n/index.js';
 import { Store, type PidFile } from '../store/index.js';
 import { Engine } from '../engine/index.js';
-import { BinanceFeed, planSubscriptions, retryDelayMs, type FeedOptions, type StreamPlan } from '../binance/index.js';
+import { AccountFeed, BinanceFeed, planSubscriptions, retryDelayMs, type AccountFeedOptions, type AccountWants, type AuthorizeResult, type FeedOptions, type StreamPlan } from '../binance/index.js';
+import type { KeyService } from '../security/index.js';
 import type { Notifier } from '../notify/index.js';
 import { FileLogSink } from './logsink.js';
 import { SLEEP_CHECK_MS, SLEEP_THRESHOLD_MS, SleepDetector } from './sleep.js';
@@ -64,6 +66,12 @@ export interface RuntimeOptions {
   /** binance 연결 옵션 덮어쓰기 (테스트용 가짜 소켓 등) */
   feedOptions?: Partial<Omit<FeedOptions, 'bus'>>;
   process?: ProcessLike;
+  /** 키 관리 (v0.2). 없으면 키가 없는 것으로 본다. */
+  keys?: KeyService;
+  /** 개발자 전용 BLERT_NETWORK=testnet 이면 testnet (결정 1A) */
+  network?: NetworkMode;
+  /** 계정 연결 옵션 덮어쓰기 (테스트용 가짜 서버 등) */
+  accountFeedOptions?: Partial<Omit<AccountFeedOptions, 'bus' | 'authorize' | 'wants' | 'onFatal'>>;
 }
 
 type StartResult = { ok: true } | { ok: false; failedMarkets: string[] };
@@ -82,6 +90,14 @@ export class Runtime {
   private readonly notifier: Notifier;
   private engine?: Engine;
   private feed?: BinanceFeed;
+  private accountFeed?: AccountFeed;
+  /** 활성 계정 규칙(체결·잔고). 계정 연결이 필요한지와 보충 조회 대상을 정한다 */
+  private accountRules: Rule[] = [];
+  /** 키 문제로 계정 기능을 멈췄는가. 다시 시작할 때까지 재시도하지 않는다 */
+  private accountStopped = false;
+  private ipWarned = false;
+  /** 감시 시작 알림을 낸 뒤에야 계정 연결을 시작한다 (B9 시작 순서) */
+  private started = false;
   private offEngine?: () => void;
   private sleep?: SleepDetector;
   private plan: StreamPlan[] = [];
@@ -145,6 +161,7 @@ export class Runtime {
     this.armHeartbeat();
 
     this.logger.info(LOG, `starting with ${enabled.length} rules`);
+    if (this.o.network === 'testnet') this.o.io.out(t('run.testnetBanner'));
     this.o.io.out(t('run.connecting'));
     try {
       await this.build();
@@ -170,6 +187,8 @@ export class Runtime {
     };
     this.notifier.announce(alert);
     this.o.io.out(t('run.started'));
+    this.started = true;
+    this.syncAccountFeed(); // 계정 알림이 있으면 키를 확인하고 계정 연결을 시작한다
     // 일부 시장만 연결된 채로 시작하면 감시하지 못하는 규칙을 반드시 알린다 (NFR-REL-02). 연결은 계속 재시도한다.
     for (const market of failed as Market[]) this.reportDegraded(market, count(market));
     this.reportUncleanExit();
@@ -207,6 +226,7 @@ export class Runtime {
     this.bus.on('conn.gap', (e) => {
       this.logger.warn(LOG, `monitoring gap (${e.reason}${e.ongoing ? ', ongoing' : ''}): ${e.from} ~ ${e.to}`);
     });
+    this.bus.on('key.denied', (e) => this.logger.warn(LOG, `account features disabled: ${e.reason}${e.fields?.length ? ` (${e.fields.join(', ')})` : ''}`));
     this.bus.on('rules.changed', () => void this.refreshPlan());
     this.bus.on('market.ticker', (e) => void this.seen.add(`${e.market}:${e.symbol}`));
     this.bus.on('market.funding', (e) => void this.seen.add(`futures:${e.symbol}`));
@@ -232,6 +252,8 @@ export class Runtime {
   private async teardown(): Promise<void> {
     this.sleep?.stop();
     this.feed?.stop();
+    this.accountFeed?.stop();
+    this.accountFeed = undefined;
     this.offEngine?.();
     try {
       await this.engine?.flush(); // 상태 저장
@@ -248,6 +270,8 @@ export class Runtime {
       if (!this.feed || this.stopping) return;
       this.plan = planSubscriptions(rules);
       this.feed.update(this.plan);
+      this.accountRules = rules.filter((r) => r.enabled && (r.condition.type === 'fill' || r.condition.type === 'balance'));
+      this.syncAccountFeed();
     } catch (e) {
       this.logger.error(LOG, `refresh subscriptions failed: ${String(e)}`);
     }
@@ -279,6 +303,83 @@ export class Runtime {
         resolve(notOpen());
       }, this.timing.startupTimeoutMs);
     });
+  }
+
+  // ---- 계정 알림 (v0.2: 체결·잔고) ----
+
+  /** 규칙이 계정 연결에 요구하는 것. 보충 조회가 무엇을 조회할지 정한다 (결정 2A) */
+  private accountWants(): AccountWants {
+    const fills = this.accountRules.filter((r) => r.condition.type === 'fill');
+    return {
+      balances: this.accountRules.some((r) => r.condition.type === 'balance'),
+      fills: fills.length > 0,
+      allFills: fills.some((r) => r.symbol === '*'),
+      fillSymbols: fills.filter((r) => r.symbol !== '*').map((r) => r.symbol),
+    };
+  }
+
+  /** 계정 규칙이 있으면 계정 연결을 켜고, 없어지면 끈다. 키 문제로 멈춘 뒤에는 다시 시작할 때까지 켜지 않는다. */
+  private syncAccountFeed(): void {
+    if (this.stopping || !this.started) return;
+    if (this.accountRules.length === 0) {
+      this.accountFeed?.stop();
+      this.accountFeed = undefined;
+      return;
+    }
+    if (this.accountFeed || this.accountStopped) return;
+    this.accountFeed = new AccountFeed({
+      bus: this.bus,
+      clock: this.clock,
+      logger: this.logger,
+      mode: this.o.network,
+      ...this.o.accountFeedOptions,
+      authorize: () => this.authorizeAccount(),
+      wants: () => this.accountWants(),
+      onFatal: (detail) => {
+        this.accountStopped = true;
+        this.logger.warn(LOG, `account features stopped: ${detail}`);
+      },
+    });
+    this.accountFeed.start();
+  }
+
+  /**
+   * 계정 연결을 (다시) 맺기 전에 키를 확인한다. 시작할 때와 재연결할 때마다 같은 경로로 호출된다 (FR-KEY-02, FR-KEY-04).
+   * 문제가 있으면 알리고 계정 기능만 멈춘다. 공개 알림은 영향이 없다.
+   */
+  private async authorizeAccount(): Promise<AuthorizeResult> {
+    const prepared = this.o.keys ? await this.o.keys.prepare() : ({ state: 'none' } as const);
+    const stop = (detail: string): AuthorizeResult => ({ ok: false, retry: false, detail });
+    switch (prepared.state) {
+      case 'ready':
+        // 허용 IP 제한이 없는 키는 실행할 때마다 경고한다 (FR-KEY-03). 재연결 때마다 되풀이하지는 않는다.
+        if (!prepared.ipRestricted && !this.ipWarned) {
+          this.ipWarned = true;
+          this.announceAccount('alert.account.ipwarn', {});
+        }
+        return { ok: true, credentials: prepared.credentials };
+      case 'unverified':
+        this.logger.warn(LOG, `key check could not be completed: ${prepared.detail}`);
+        return { ok: false, retry: true, detail: prepared.detail }; // 일시적: 백오프로 다시 확인한다
+      case 'denied':
+        this.bus.emit({ type: 'key.denied', ts: iso(this.clock.now()), reason: prepared.reason, fields: prepared.fields });
+        return stop(`permissions: ${prepared.fields.join(', ')}`);
+      case 'no-keychain':
+        this.bus.emit({ type: 'key.denied', ts: iso(this.clock.now()), reason: 'no-keychain' });
+        return stop('no keychain');
+      case 'rejected':
+        // 저장된 키가 Ed25519가 아니면 쓸 수 없는 형식이고, 그 밖에는 바이낸스가 키·서명·허용 IP를 거부한 것이다
+        if (/Ed25519/.test(prepared.detail)) this.bus.emit({ type: 'key.denied', ts: iso(this.clock.now()), reason: 'hmac' });
+        else this.announceAccount('alert.account.rejected', { detail: prepared.detail });
+        return stop(prepared.detail);
+      case 'none':
+        this.announceAccount('alert.account.nokey', { count: this.accountRules.length });
+        return stop('no key stored');
+    }
+  }
+
+  private announceAccount(titleKey: string, params: Record<string, string | number>): void {
+    this.notifier.announce({ ruleId: 0, kind: 'warn', titleKey: `${titleKey}.title`, params, firedAt: iso(this.clock.now()) });
   }
 
   // ---- 실행 잠금·생존 신호 (blert.pid) ----
@@ -333,6 +434,7 @@ export class Runtime {
   private onWake(from: number, to: number): void {
     this.logger.warn(LOG, `system wake detected, gap ${iso(from)} ~ ${iso(to)}`);
     this.feed?.reconnectAll(); // 모든 연결을 다시 맺고, 끊긴 사이 1분봉을 보충한다
+    this.accountFeed?.reconnectNow(); // 계정 연결도 다시 맺고, 끊긴 사이 체결·잔고를 보충한다
     this.bus.emit({ type: 'conn.gap', ts: iso(to), from: iso(from), to: iso(to), reason: 'sleep' });
   }
 

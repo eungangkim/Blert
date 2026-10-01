@@ -64,12 +64,14 @@ const store = new Store();
 const soundEnabledForTest = async () => (await store.loadConfig()).soundEnabled;
 const notifier = createNotifier({ out: (line) => io.out(line), soundEnabled: soundEnabledForTest });
 const soundEnabled = async () => (await store.loadConfig()).soundEnabled;
+const keys = createKeyService({ keychain: createNapiKeychain(), mode: network });
 const runner = createRunner({
   dir: store.dir,
   io,
+  keys,
+  network,
   makeNotifier: (logger) => createNotifier({ out: (line) => io.out(line), soundEnabled, logger }),
 });
-const keys = createKeyService({ keychain: createNapiKeychain(), mode: network });
 const deps: Deps = { store, presets: createPresetService(store), notifier, runner, keys, network, io };
 const code = await runCli(process.argv.slice(2), deps);
 io.close();
