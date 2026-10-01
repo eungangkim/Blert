@@ -16,6 +16,10 @@ export function describeCondition(c: Condition): string {
       return t('cond.volume', { multiple: c.multiple, short: formatDuration(c.shortMs), long: formatDuration(c.longMs) });
     case 'funding':
       return t('cond.funding', { direction: c.direction, pct: c.pct });
+    case 'fill':
+      return t('cond.fill');
+    case 'balance':
+      return t('cond.balance', { asset: c.asset === '*' ? t('asset.all') : c.asset, pct: c.pct });
   }
 }
 
@@ -27,6 +31,8 @@ export function describeRepeat(r: RepeatPolicy): string {
       return t('repeat.cooldown', { duration: formatDuration(r.ms) });
     case 'hysteresis':
       return t('repeat.hysteresis', { pct: r.widthPct });
+    case 'each':
+      return t('repeat.each');
   }
 }
 

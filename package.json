@@ -40,5 +40,8 @@
     "notification",
     "cli",
     "crypto"
-  ]
+  ],
+  "dependencies": {
+    "@napi-rs/keyring": "2.1.0"
+  }
 }

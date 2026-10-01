@@ -1,4 +1,5 @@
 import type { Market } from '../shared/types.js';
+import type { NetworkMode } from '../shared/network.js';
 
 /*
  * 확인한 공식 문서 (2026-09-30):
@@ -38,13 +39,33 @@ export const LIMITS: Record<Market, { maxStreams: number; klineLimit: number }> 
   futures: { maxStreams: 190, klineLimit: 1500 },
 };
 
-/** 네트워크 요청은 바이낸스 도메인으로만 보낸다 (NFR-SEC-02) */
-export const ALLOWED_HOSTS = ['stream.binance.com', 'fstream.binance.com', 'api.binance.com', 'fapi.binance.com'];
+/** 네트워크 요청은 바이낸스 도메인으로만 보낸다 (NFR-SEC-02). 목록과 검사는 shared/network.ts에 있다. */
+export { MAINNET_HOSTS as ALLOWED_HOSTS, isAllowedUrl } from '../shared/network.js';
 
-export function isAllowedUrl(url: string, hosts: readonly string[] = ALLOWED_HOSTS): boolean {
-  try {
-    return hosts.includes(new URL(url).hostname);
-  } catch {
-    return false;
-  }
+/*
+ * 계정 연결 (v0.2). 문서 (2026-10-02 확인):
+ * - WebSocket API: https://developers.binance.com/docs/binance-spot-api-docs/websocket-api/general-api-information
+ *   · wss://ws-api.binance.com:443/ws-api/v3, 테스트넷 wss://ws-api.testnet.binance.vision/ws-api/v3, 연결 24시간, 서버 ping 20초
+ *   · 사용자 데이터 이벤트는 {"subscriptionId":0,"event":{...}} 로 온다
+ * - 인증: https://developers.binance.com/docs/binance-spot-api-docs/websocket-api/authentication-requests (session.logon, Ed25519 전용)
+ *   서명: https://developers.binance.com/docs/binance-spot-api-docs/websocket-api/request-security
+ *   · apiKey를 포함한 params(signature 제외)를 이름순 정렬해 key=value&... 로 만들고 Ed25519 서명 후 base64
+ * - 구독: https://developers.binance.com/docs/binance-spot-api-docs/websocket-api/user-data-stream-requests (userDataStream.subscribe, listenKey 미사용 — D-06)
+ * - 이벤트: https://developers.binance.com/docs/binance-spot-api-docs/user-data-stream
+ *   · executionReport(x=TRADE일 때 체결: s 심볼, S 방향, l 체결 수량, L 체결 가격, i 주문 ID, t 체결 ID)
+ *   · outboundAccountPosition(B[]: a 자산, f 사용 가능, l 잠김), eventStreamTerminated
+ * - REST 서명: https://developers.binance.com/docs/binance-spot-api-docs/rest-api/request-security
+ *   · X-MBX-APIKEY 헤더, 쿼리 문자열을 Ed25519로 서명 → base64 → 퍼센트 인코딩 후 signature를 마지막에 붙임
+ * - 계정 조회: https://developers.binance.com/docs/binance-spot-api-docs/rest-api/account-endpoints
+ *   · GET /api/v3/account (weight 20, balances[].asset/free/locked), GET /api/v3/myTrades (symbol 필수, weight 20, limit 최대 1000)
+ * - 권한 조회: https://developers.binance.com/docs/wallet/account/api-key-permission (GET /sapi/v1/account/apiRestrictions, 테스트넷 미지원)
+ */
+export interface AccountEndpoints {
+  wsApi: string;
+  rest: string;
 }
+
+export const ACCOUNT_ENDPOINTS: Record<NetworkMode, AccountEndpoints> = {
+  mainnet: { wsApi: 'wss://ws-api.binance.com:443/ws-api/v3', rest: 'https://api.binance.com' },
+  testnet: { wsApi: 'wss://ws-api.testnet.binance.vision/ws-api/v3', rest: 'https://testnet.binance.vision' },
+};

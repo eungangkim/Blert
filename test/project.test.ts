@@ -65,7 +65,10 @@ describe('구조 규칙 (B2 모듈 경계)', () => {
     }
     // 주석의 문서 링크(developers.binance.com, kenney.nl 등)는 코드가 아니라 참고용이다
     const runtimeHosts = [...hosts].filter((h) => !/^(developers\.binance\.com|kenney\.nl|creativecommons\.org)$/.test(h));
-    expect(runtimeHosts.sort()).toEqual(['api.binance.com', 'fapi.binance.com', 'fstream.binance.com', 'stream.binance.com']);
+    // 실서버 5곳과, BLERT_NETWORK=testnet 에서만 허용되는 테스트넷 2곳 (shared/network.ts)
+    expect(runtimeHosts.sort()).toEqual([
+      'api.binance.com', 'fapi.binance.com', 'fstream.binance.com', 'stream.binance.com', 'testnet.binance.vision', 'ws-api.binance.com', 'ws-api.testnet.binance.vision',
+    ]);
   });
 });
 
@@ -101,12 +104,17 @@ describe('패키지 규칙 (NFR-SEC-03, NFR-COMP-02)', () => {
 describe('수용 기준 커버리지 (CLAUDE.md 테스트 규칙)', () => {
   const names = files(join(ROOT, 'test'), /\.test\.ts$/).flatMap((f) => [...readFileSync(f, 'utf8').matchAll(/\bit\('(AC-\d{2})[ ,]/g)].map((m) => m[1]!));
 
-  it('AC-01 ~ AC-24는 이름이 해당 ID로 시작하는 자동 테스트가 하나 이상 있다 (AC-25는 수동)', () => {
-    const missing = Array.from({ length: 24 }, (_, i) => `AC-${String(i + 1).padStart(2, '0')}`).filter((id) => !names.includes(id));
-    expect(missing).toEqual([]);
+  it('AC-01 ~ AC-24와 AC-26 ~ AC-34는 이름이 해당 ID로 시작하는 자동 테스트가 하나 이상 있다 (AC-25는 수동)', () => {
+    // v0.2 작업 중 아직 구현하지 않은 항목. 구현하면 여기서 지운다 (마지막 단계에서 비어 있어야 한다).
+    const PENDING = ['AC-29', 'AC-30', 'AC-31', 'AC-32', 'AC-33'];
+    const ids = Array.from({ length: 34 }, (_, i) => i + 1)
+      .filter((n) => n !== 25)
+      .map((n) => `AC-${String(n).padStart(2, '0')}`)
+      .filter((id) => !PENDING.includes(id));
+    expect(ids.filter((id) => !names.includes(id))).toEqual([]);
   });
 
-  it('v0.1 범위 밖의 수용 기준(AC-26 이상) 테스트는 없다', () => {
-    expect(names.filter((n) => Number(n.slice(3)) > 25)).toEqual([]);
+  it('현재 목표(v0.2)를 넘는 수용 기준(AC-35 이상) 테스트는 없다', () => {
+    expect(names.filter((n) => Number(n.slice(3)) > 34)).toEqual([]);
   });
 });

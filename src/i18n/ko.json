@@ -220,5 +220,21 @@
   "alert.partial.title": "{market} 연결 실패",
   "alert.partial.body": "알림 {count}개를 지금은 감시하지 못합니다 · 계속 재시도 중",
   "alert.recovered.title": "{market} 연결 복구",
-  "alert.recovered.body": "알림 감시를 다시 시작했습니다"
+  "alert.recovered.body": "알림 감시를 다시 시작했습니다",
+  "err.networkInvalid": "BLERT_NETWORK 값 `{value}`을(를) 알 수 없습니다. 비우거나 testnet만 쓸 수 있습니다. 예: BLERT_NETWORK=testnet",
+  "type.fill": "체결",
+  "type.balance": "잔고",
+  "cond.fill": "주문 체결",
+  "cond.balance": "{asset} ±{pct}%",
+  "asset.all": "전체",
+  "repeat.each": "이벤트마다",
+  "err.keyNotEd25519": "Ed25519 개인키(PEM 파일)가 아닙니다. HMAC 키와 RSA 키는 쓸 수 없습니다. Ed25519 키쌍을 만들어 공개키를 바이낸스에 등록하고, 개인키 파일 경로를 입력하세요. 예: openssl genpkey -algorithm ED25519 -out private_key.pem",
+  "err.keyApiKey": "API 키가 비어 있거나 형식이 올바르지 않습니다. 바이낸스가 공개키 등록 뒤에 발급한 API 키 문자열(영문·숫자)을 입력하세요. 공개키 자체가 API 키는 아닙니다. 예: 64자의 영문·숫자",
+  "err.keyFile": "키 파일을 읽을 수 없습니다: {path}. 개인키 PEM 파일의 경로를 입력하세요. 예: C:\\Users\\me\\blert-keys\\private_key.pem",
+  "err.keyDenied": "이 키는 읽기 전용이 아니어서 저장·사용하지 않습니다(켜진 권한: {fields}). 바이낸스 API 관리에서 읽기 권한만 남기고 거래·출금·마진·선물 권한을 끈 키를 만들어 다시 등록하세요. 예: 'Enable Reading'만 켜고 허용 IP를 제한한 새 Ed25519 키",
+  "err.keyNoRead": "이 키에는 읽기 권한이 없어 계정 알림에 쓸 수 없습니다({fields}). 바이낸스 API 관리에서 읽기 권한을 켜세요. 예: 'Enable Reading'을 켠 키",
+  "err.keyRejected": "바이낸스가 이 키를 거부했습니다({detail}). API 키와 개인키가 같은 키쌍인지, 이 PC의 IP가 허용 IP에 들어 있는지 확인하세요. 예: 바이낸스 API 관리에서 허용 IP에 현재 IP 추가",
+  "err.keyUnverified": "키 권한을 확인하지 못했습니다({detail}). 인터넷 연결과 PC 시계를 확인한 뒤 다시 시도하세요. 예: blert key check",
+  "err.keyNone": "저장된 키가 없습니다. 먼저 키를 등록하세요. 예: blert key add",
+  "err.keyNoKeychain": "이 환경에서는 OS 키체인을 쓸 수 없어 키를 저장하지 않습니다. 키는 파일이나 환경변수로 대신 저장하지 않으며, 공개 알림은 그대로 쓸 수 있습니다. Linux는 Secret Service(gnome-keyring 등)가 필요합니다. 예: sudo apt install gnome-keyring"
 }

@@ -3,7 +3,8 @@ export type Market = 'spot' | 'futures';
 export type RepeatPolicy =
   | { kind: 'once' }
   | { kind: 'cooldown'; ms: number }
-  | { kind: 'hysteresis'; widthPct: number };
+  | { kind: 'hysteresis'; widthPct: number }
+  | { kind: 'each' }; // 이벤트마다 알린다 (체결 알림). 반복 정책이 없다 (B4)
 
 export type SoundKind = 'up' | 'down' | 'account' | 'warn';
 
@@ -23,7 +24,10 @@ export type Condition =
   | { type: 'price'; direction: 'above' | 'below'; price: number }
   | { type: 'change'; pct: number; windowMs: number; direction: 'up' | 'down' | 'both' }
   | { type: 'volume'; multiple: number; shortMs: number; longMs: number }
-  | { type: 'funding'; direction: 'above' | 'below'; pct: number };
+  | { type: 'funding'; direction: 'above' | 'below'; pct: number }
+  // v0.2 계정 알림. 규칙의 symbol은 체결은 심볼 또는 '*'(전체), 잔고는 '*'이고 자산은 asset에 둔다.
+  | { type: 'fill' }
+  | { type: 'balance'; asset: string; pct: number };
 
 export type RuleType = Condition['type'];
 

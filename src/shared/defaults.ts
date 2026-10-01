@@ -10,6 +10,8 @@ export const DEFAULT_REPEAT: Record<RuleType, RepeatPolicy> = {
   change: { kind: 'cooldown', ms: 30 * MINUTE },
   volume: { kind: 'cooldown', ms: 15 * MINUTE },
   funding: { kind: 'hysteresis', widthPct: 20 },
+  fill: { kind: 'each' },
+  balance: { kind: 'cooldown', ms: 10 * MINUTE }, // D-27
 };
 
 /** 쿨다운 허용 범위 (B4: 1분 ~ 24시간) */

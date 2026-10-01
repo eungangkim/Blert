@@ -19,6 +19,8 @@ export interface Config {
   runMode: 'foreground';
   disclaimerAccepted: boolean;
   presets: { slug: string; version: number }[];
+  /** 키체인에 저장한 키의 참조 이름. 키·시크릿은 파일에 저장하지 않는다 (B6) */
+  keyRef?: string;
 }
 export interface RulesFile {
   schemaVersion: number;

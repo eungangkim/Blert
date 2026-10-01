@@ -6,6 +6,11 @@ export type BlertEvent =
   | { type: 'market.ticker'; ts: string; market: Market; symbol: string; price: number; quoteVolume: number }
   | { type: 'market.kline'; ts: string; market: Market; symbol: string; openTime: string; close: number; quoteVolume: number; closed: boolean }
   | { type: 'market.funding'; ts: string; symbol: string; rate: number; nextFundingTime: string }
+  // v0.2 계정 이벤트 (바이낸스 사용자 데이터 스트림). tradeId는 재연결 후 보충 조회와의 중복 제거용이다.
+  | { type: 'account.fill'; ts: string; market: 'spot'; symbol: string; side: 'BUY' | 'SELL'; qty: number; price: number; orderId: number; tradeId: number }
+  | { type: 'account.balance'; ts: string; asset: string; free: number; locked: number }
+  // 키 때문에 계정 기능을 쓸 수 없을 때. fields는 문제가 된 권한 이름이다.
+  | { type: 'key.denied'; ts: string; reason: 'trade' | 'withdraw' | 'hmac' | 'no-keychain'; fields?: string[] }
   | { type: 'rule.fired'; ts: string; alert: Alert }
   | { type: 'rules.changed'; ts: string; ruleIds: number[] }
   | { type: 'conn.status'; ts: string; stream: string; state: 'connecting' | 'open' | 'retrying' | 'closed'; attempt: number }
