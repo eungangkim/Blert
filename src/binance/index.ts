@@ -12,6 +12,7 @@ import { streamsOf, type StreamPlan } from './subscriptions.js';
 export { planSubscriptions, type StreamPlan } from './subscriptions.js';
 export type { WebSocketLike, WsFactory, ConnState } from './connection.js';
 export { retryDelayMs } from './connection.js';
+export { AccountFeed, ACCOUNT_STREAM, type AccountFeedOptions, type AccountWants, type AuthorizeResult } from './account.js';
 
 const LOG = 'binance';
 const MARKETS: Market[] = ['spot', 'futures'];
