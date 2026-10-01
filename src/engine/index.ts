@@ -5,7 +5,7 @@ import type { Logger } from '../shared/logger.js';
 import { iso } from '../shared/clock.js';
 import type { Store } from '../store/index.js';
 import { MinuteVolumes, PriceHistory, MAX_STALE_MS, bucketFor } from './history.js';
-import { measureChange, measureFunding, measurePrice, measureVolume, rearmed, satisfied, toAlert, type Measurement } from './measure.js';
+import { measureBalance, measureChange, measureFill, measureFunding, measurePrice, measureVolume, rearmed, satisfied, toAlert, type Measurement } from './measure.js';
 
 const MINUTE = 60_000;
 const LOG = 'engine';
@@ -36,6 +36,10 @@ export class Engine {
   private volumeRetention = new Map<string, number>();
   /** 교차 판정용: 규칙별 직전 충족 여부. 처음 관측하면 기준만 기록하고 발동하지 않는다. */
   private wasSatisfied = new Map<number, boolean>();
+  /** 계정 알림(체결·잔고) 규칙. 심볼 구독과 무관하게 계정 이벤트마다 확인한다 */
+  private accountRules: Rule[] = [];
+  /** 잔고 알림의 기준: 규칙별·자산별 마지막 알림 시점(또는 처음 본) 잔고 */
+  private balanceBase = new Map<number, Map<string, number>>();
   private pending: Promise<unknown> = Promise.resolve();
   private emit: (alert: Alert) => void = () => {};
 
@@ -61,13 +65,16 @@ export class Engine {
     this.states = next;
     for (const r of rules) if (!r.enabled) this.wasSatisfied.delete(r.id); // 다시 켜지면 새로 기준을 잡는다
     for (const id of [...this.wasSatisfied.keys()]) if (!next.has(id)) this.wasSatisfied.delete(id);
+    for (const r of rules) if (!r.enabled) this.balanceBase.delete(r.id);
+    for (const id of [...this.balanceBase.keys()]) if (!next.has(id)) this.balanceBase.delete(id);
+    this.accountRules = rules.filter((r) => r.enabled && (r.condition.type === 'fill' || r.condition.type === 'balance'));
 
     this.byKey.clear();
     this.priceRetention.clear();
     this.priceBucket.clear();
     this.volumeRetention.clear();
     for (const r of rules) {
-      if (!r.enabled) continue;
+      if (!r.enabled || r.condition.type === 'fill' || r.condition.type === 'balance') continue;
       const key = keyOf(r.market, r.symbol);
       (this.byKey.get(key) ?? this.byKey.set(key, []).get(key)!).push(r);
       const c = r.condition;
@@ -89,6 +96,8 @@ export class Engine {
       bus.on('market.ticker', (e) => void this.handle(e)),
       bus.on('market.kline', (e) => void this.handle(e)),
       bus.on('market.funding', (e) => void this.handle(e)),
+      bus.on('account.fill', (e) => void this.handle(e)),
+      bus.on('account.balance', (e) => void this.handle(e)),
       bus.on('rules.changed', () => this.reload()),
     ];
     return () => {
@@ -129,6 +138,10 @@ export class Engine {
         return this.onKline(e);
       case 'market.funding':
         return this.onFunding(e);
+      case 'account.fill':
+        return this.onFill(e);
+      case 'account.balance':
+        return this.onBalance(e);
       default:
         return [];
     }
@@ -191,6 +204,39 @@ export class Engine {
     return alerts;
   }
 
+  /** 주문 체결: 이벤트마다 알린다. 규칙은 심볼 하나 또는 전체('*')다. */
+  private onFill(e: EventOf<'account.fill'>): Alert[] {
+    const ts = Date.parse(e.ts);
+    const alerts: Alert[] = [];
+    for (const rule of this.accountRules) {
+      if (rule.condition.type !== 'fill' || !rule.enabled) continue;
+      if (rule.symbol !== '*' && rule.symbol !== e.symbol) continue;
+      const m = measureFill(rule, e);
+      if (m) this.apply(rule, m, ts, alerts);
+    }
+    return alerts;
+  }
+
+  /** 잔고 변동: 마지막 알림 시점 대비 일정 % 이상 바뀌면 알린다. 쿨다운 중에는 기준을 옮기지 않는다. */
+  private onBalance(e: EventOf<'account.balance'>): Alert[] {
+    const ts = Date.parse(e.ts);
+    const total = e.free + e.locked;
+    const alerts: Alert[] = [];
+    for (const rule of this.accountRules) {
+      const c = rule.condition;
+      if (c.type !== 'balance' || !rule.enabled || (c.asset !== '*' && c.asset !== e.asset)) continue;
+      const bases = this.balanceBase.get(rule.id) ?? this.balanceBase.set(rule.id, new Map()).get(rule.id)!;
+      const base = bases.get(e.asset);
+      if (base === undefined || base === 0) {
+        bases.set(e.asset, total); // 처음 본 값(또는 0에서 시작)은 기준만 잡는다
+        continue;
+      }
+      const m = measureBalance(rule, e.asset, base, total, () => bases.set(e.asset, total));
+      if (m) this.apply(rule, m, ts, alerts);
+    }
+    return alerts;
+  }
+
   /** 반복 정책을 적용해 발동 여부를 정한다 (B4 반복 정책 동작) */
   private apply(rule: Rule, m: Measurement, ts: number, out: Alert[]): void {
     const st = this.states.get(rule.id) ?? { ruleId: rule.id, armed: true };
@@ -216,6 +262,7 @@ export class Engine {
     if (policy.kind === 'once') this.disable(rule);
     this.persist();
 
+    m.onFire?.();
     const alert = toAlert(rule, m, st.lastFiredAt);
     out.push(alert);
     this.emit(alert);

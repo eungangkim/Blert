@@ -40,7 +40,9 @@ export function render(alert: Alert): { title: string; body: string } {
     if (k.endsWith('Ms') && typeof v === 'number') params[k.slice(0, -2)] = durationText(v);
   }
   if (params.market === 'spot' || params.market === 'futures') params.market = t(`market.${params.market}`);
+  if (params.side === 'BUY' || params.side === 'SELL') params.side = t(`side.${params.side}`);
   const bodyKey = alert.titleKey.replace(/\.title$/, '.body');
   const body = bodyKey === alert.titleKey ? '' : t(bodyKey, params);
-  return { title: t(alert.titleKey, params), body: body === bodyKey ? '' : body };
+  // 견적 통화를 알 수 없는 쌍은 quote가 비어 공백이 겹친다
+  return { title: t(alert.titleKey, params).replace(/ {2,}/g, ' ').trim(), body: body === bodyKey ? '' : body.replace(/ {2,}/g, ' ').trim() };
 }

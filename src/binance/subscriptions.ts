@@ -18,7 +18,8 @@ export interface StreamPlan {
 export function planSubscriptions(rules: Rule[]): StreamPlan[] {
   const plans = new Map<string, StreamPlan>();
   for (const r of rules) {
-    if (!r.enabled) continue;
+    // 계정 알림(체결·잔고)은 공개 스트림이 필요 없다. 계정 연결은 따로 관리한다 (v0.2)
+    if (!r.enabled || r.condition.type === 'fill' || r.condition.type === 'balance') continue;
     const key = `${r.market}:${r.symbol}`;
     const plan = plans.get(key) ?? { market: r.market, symbol: r.symbol, ticker: false, kline: false, funding: false, backfillMs: 0 };
     plans.set(key, plan);

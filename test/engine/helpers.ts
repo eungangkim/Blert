@@ -44,3 +44,18 @@ export const kline = (openTs: number, quoteVolume: number, opts: { close?: numbe
 export const funding = (ts: number, ratePct: number, symbol = 'BTCUSDT'): BlertEvent => ({
   type: 'market.funding', ts: iso(ts), symbol, rate: ratePct / 100, nextFundingTime: iso(ts + 8 * HOUR),
 });
+
+export const fill = (
+  ts: number,
+  symbol: string,
+  side: 'BUY' | 'SELL',
+  qty: number,
+  price: number,
+  ids: { orderId?: number; tradeId?: number } = {},
+): BlertEvent => ({
+  type: 'account.fill', ts: iso(ts), market: 'spot', symbol, side, qty, price, orderId: ids.orderId ?? 1, tradeId: ids.tradeId ?? 1,
+});
+
+export const balance = (ts: number, asset: string, free: number, locked = 0): BlertEvent => ({
+  type: 'account.balance', ts: iso(ts), asset, free, locked,
+});

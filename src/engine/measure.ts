@@ -1,5 +1,6 @@
 import type { Alert, Rule, SoundKind } from '../shared/types.js';
-import { baseAsset, quoteAsset } from '../shared/symbol.js';
+import { baseAsset, quoteAsset, splitSymbol } from '../shared/symbol.js';
+import type { EventOf } from '../shared/events.js';
 import { formatCompact, formatExact, formatPct, formatPctExact, formatPrice } from '../shared/format.js';
 
 /**
@@ -17,6 +18,8 @@ export interface Measurement {
   kind: SoundKind;
   titleKey: string;
   params: Record<string, string | number>;
+  /** 실제로 알림이 나간 뒤에 부른다 (잔고 알림이 기준을 옮기는 데 쓴다) */
+  onFire?: () => void;
 }
 
 export function satisfied(m: Measurement): boolean {
@@ -120,5 +123,37 @@ export function toAlert(rule: Rule, m: Measurement, firedAtIso: string): Alert {
     params: m.params,
     firedAt: firedAtIso,
     ...(rule.sound ? { sound: rule.sound } : {}),
+  };
+}
+
+/** 체결 알림 (FR-ACC-01). 이벤트마다 발동한다. */
+export function measureFill(rule: Rule, e: EventOf<'account.fill'>): Measurement | null {
+  if (rule.condition.type !== 'fill') return null;
+  const { base: coin, quote } = splitSymbol(e.symbol);
+  return {
+    value: 1,
+    threshold: 1,
+    direction: 'above',
+    kind: 'account',
+    titleKey: 'alert.fill.title',
+    params: { coin, quote, side: e.side, qty: formatExact(e.qty), price: formatExact(e.price) }, // side는 notify가 매수·매도로 번역
+  };
+}
+
+/**
+ * 잔고 알림 (FR-ACC-02, D-27). 기준은 마지막 알림 시점의 잔고(free+locked)다.
+ * 기준이 없거나 0이면 알리지 않고 기준만 잡는다. 호출한 쪽이 기준을 보관하고, 알림이 나갔을 때만 onFire로 옮긴다.
+ */
+export function measureBalance(rule: Rule, asset: string, base: number, total: number, onFire: () => void): Measurement | null {
+  if (rule.condition.type !== 'balance' || !(base > 0)) return null;
+  const pct = ((total - base) / base) * 100;
+  return {
+    value: Math.abs(pct),
+    threshold: rule.condition.pct,
+    direction: 'above',
+    kind: 'account',
+    titleKey: 'alert.balance.title',
+    params: { asset, pct: formatPct(pct, 1, true), from: formatExact(base), to: formatExact(total) },
+    onFire,
   };
 }
