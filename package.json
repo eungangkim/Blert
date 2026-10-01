@@ -19,7 +19,7 @@
     "dev": "tsx src/index.ts",
     "prepack": "npm run build"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "devDependencies": {
     "@types/node": "24.19.0",
     "tsx": "4.23.15",

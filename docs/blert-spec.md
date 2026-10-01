@@ -132,6 +132,11 @@ Sep 30, 2026 · @김은강
 | D-31 | 기술 기본값 | Part B에 적힌 수치·규칙 기본값 일괄 승인 | 구현 착수 가능 상태 확보 | 2026-09-30 |
 | D-32 | 목표 날짜 | v0.1은 2026-10-07, v0.2는 2026-10-21. 이후는 v0.2 완료 후 산정. 하루 5시간 기준 | v0.1은 공개 데이터라 1주 가능, 보안 기능은 여유 있게 | 2026-09-30 |
 | D-33 | 거래량·변동률 데이터 | 1분봉(`kline_1m`) 스트림을 구독하고, 시작·재연결 직후 REST로 필요한 구간의 1분봉을 백필한다 (D-25 보완) | 24시간 롤링 티커로는 짧은 구간 거래대금과 과거 가격을 알 수 없고, 백필이 없으면 시작 후 최대 24시간 동안 판정이 불가 | 2026-09-30 |
+| D-34 | 가격·펀딩비 알림 시점 | 기준을 **넘는 순간**(미충족 → 충족)에만 알린다. 시작할 때 이미 충족 중이면 알리지 않고, 기준 반대편으로 갔다가 다시 넘을 때 알린다. 변동률·거래량은 현재 수준을 보고 반복 정책으로 소음을 막는다 | "넘는 순간" 문구(AC-09)에 맞고, 시작 직후 알림 폭주를 막는다 | 2026-10-01 |
+| D-35 | 실행 잠금·생존 신호 | `blert.pid`를 v0.1 포그라운드 실행부터 쓴다. 이미 실행 중이면 새 `run`을 거부하고, 실행 중 15초마다 생존 시각을 갱신하며, 정상 종료하면 지운다. 파일이 남아 있는데 주인이 없으면 비정상 종료로 보고 그 구간을 감시 중단 알림으로 보낸다 | 알림 중복과 상태 파일 경쟁을 막고, 소리 없이 죽은 감시를 사용자가 알 수 있게 한다 (NFR-REL-02) | 2026-10-01 |
+| D-36 | 고지 동의 전 실행 | 고지 동의 기록이 없으면 `run`을 거부하고 `blert init`을 안내한다. `add`·`list` 등은 허용한다 | NFR-LEGAL-01 | 2026-10-01 |
+| D-37 | 일부 시장만 연결될 때 | 필요한 시장 중 일부만 연결돼도 시작하고, 감시하지 못하는 규칙 수를 알린 뒤 계속 재시도한다. 필요한 시장이 모두 연결되지 못할 때만 종료 코드 3 | 한쪽 서버만 막힌 환경에서도 나머지를 감시하고, 놓치는 부분은 반드시 알린다 | 2026-10-01 |
+| D-38 | 소스 라이선스 | MIT. 번들 음원은 CC0 (D-11) | 단순하고 널리 쓰이며 무보증 조항이 NFR-LEGAL-01 고지와 맞음 | 2026-10-01 |
 
 ## A4. 기능 요구사항
 
@@ -306,6 +311,8 @@ blert/
 | i18n | 메시지 키 → 한국어 문장 변환 | — | v0.1 |
 | runtime | 모듈 조립, 실행 모드, 재시작 | 전체 | v0.1 |
 
+`cli`는 `notify`와 `runtime`을 직접 import하지 않는다. `cli`가 정의한 포트 인터페이스(`NotifierPort`, `Runner`)를 진입점(`src/index.ts`)에서 구현체와 연결한다. `presets`가 구현하는 `PresetService`도 같은 방식이다.
+
 ### 모듈 간 이벤트
 
 모듈은 runtime이 만든 타입 있는 이벤트 버스 하나로만 통신한다. 모든 이벤트는 `ts`(ISO 8601)를 가진다.
@@ -321,7 +328,7 @@ blert/
 | `rule.fired` | engine | notify | B7의 `Alert` | v0.1 |
 | `rules.changed` | store | binance, engine | 바뀐 규칙 ID 목록 (구독 목록 갱신용) | v0.1 |
 | `conn.status` | binance | runtime, notify | stream, state(connecting·open·retrying·closed), attempt | v0.1 |
-| `conn.gap` | runtime, binance | notify | from, to, reason(sleep·disconnect) | v0.1 |
+| `conn.gap` | runtime, binance | notify | from, to, reason(sleep·disconnect·exit), ongoing? (5분 넘게 이어지는 끊김의 경고. 없으면 끝난 구간. exit는 이전 실행의 비정상 종료) | v0.1 |
 | `key.denied` | security | runtime, notify | reason(trade·withdraw·hmac·no-keychain) | v0.2 |
 
 ```ts
@@ -332,7 +339,7 @@ type BlertEvent =
   | { type: 'rule.fired'; ts: string; alert: Alert }
   | { type: 'rules.changed'; ts: string; ruleIds: number[] }
   | { type: 'conn.status'; ts: string; stream: string; state: 'connecting' | 'open' | 'retrying' | 'closed'; attempt: number }
-  | { type: 'conn.gap'; ts: string; from: string; to: string; reason: 'sleep' | 'disconnect' };
+  | { type: 'conn.gap'; ts: string; from: string; to: string; reason: 'sleep' | 'disconnect' | 'exit'; ongoing?: boolean };
   // v0.2 이후 이벤트는 해당 버전에서 추가
 ```
 
@@ -450,10 +457,10 @@ interface RuleState {        // 규칙과 분리해 저장 (B8)
 
 | 유형 | 조건 | 판정 방식 | 근거 |
 | --- | --- | --- | --- |
-| price | 방향(above/below), 가격 | 현재가가 기준을 넘는 순간 | FR-ALERT-01 |
+| price | 방향(above/below), 가격 | 현재가가 기준을 넘는 순간(미충족 → 충족으로 바뀔 때). 시작할 때 이미 충족 중이면 알리지 않고, 반대편으로 갔다가 다시 넘을 때 알린다. `below`는 아래로 내려가는 순간 | FR-ALERT-01, D-34 |
 | change | 퍼센트, 기간, 방향 | 롤링 윈도우: 현재가를 (현재 − 기간) 시점 가격과 비교. 기간만큼의 가격 이력을 메모리에 유지 | D-24 |
 | volume | 배수, 짧은 구간, 긴 구간 | 짧은 구간 거래대금 ÷ (긴 구간 거래대금을 짧은 구간 단위로 나눈 평균) ≥ 배수 | D-25 |
-| funding | 방향, 퍼센트 | 예상 펀딩비가 기준을 넘는 순간 | FR-ALERT-04 |
+| funding | 방향, 퍼센트 | 예상 펀딩비가 기준을 넘는 순간(미충족 → 충족). 시작 시 이미 초과 중이면 알리지 않는다. 기준과 같은 값은 초과가 아니다 | FR-ALERT-04, D-34 |
 | fill | 심볼 또는 all | 주문 체결 이벤트 수신 시 | FR-ACC-01 |
 | balance | 자산, 퍼센트 | 마지막 알림 시점 대비 잔고가 퍼센트 이상 변동 | D-27 |
 | liq | 퍼센트 | 현재가와 청산가 거리가 퍼센트 이하 (Q-01 결과 반영) | FR-ALERT-05 |
@@ -572,9 +579,10 @@ interface RuleState {        // 규칙과 분리해 저장 (B8)
 interface Alert {
   ruleId: number;
   kind: 'up' | 'down' | 'account' | 'warn';  // 사운드·아이콘 선택 기준
-  titleKey: string;                          // i18n 메시지 키
-  params: Record<string, string | number>;
+  titleKey: string;                          // i18n 메시지 키 (본문 키는 .title → .body)
+  params: Record<string, string | number>;   // market(spot/futures)과 이름이 Ms로 끝나는 기간(ms)은 notify가 한글로 바꾼다 (engine은 i18n에 의존하지 않는다)
   firedAt: string;
+  sound?: 'up' | 'down' | 'account' | 'warn' | 'off';  // 규칙의 --sound 지정. 없으면 kind를 따르고 'off'면 무음
 }
 
 interface NotifyAdapter {
@@ -596,7 +604,7 @@ interface NotifyAdapter {
 
 ### 알림 폭주 묶음 (D-28)
 
-- 10초 창 안에 발동한 알림이 3건 이상이면 "알림 N건" 요약 1건으로 보내고, 사운드는 한 번만 재생한다.
+- 알림 지연 1초 이내(NFR-PERF-01)를 지키기 위해 비(非) warn 알림은 0.3초 동안 모은 뒤 보낸다. 모인 알림이 3건 이상이면 "알림 N건" 요약 1건으로 보내고 사운드는 한 번만 재생한다. 10초 창에서 이미 2건이 나간 뒤 2건 이상 모이면 그것도 묶는다.
 - 요약 알림에는 상위 3건의 제목을 보여주고, 전체는 콘솔과 로그에 남긴다.
 - warn 종류는 묶지 않고 항상 개별로 보낸다.
 
@@ -616,6 +624,9 @@ interface NotifyAdapter {
 | 연결 끊김 | 바이낸스 연결 끊김 5분 | 재연결 시도 중 (12회) | warn |
 | 절전 복귀 | 감시 중단 구간 있음 | 14:02 \~ 14:47 동안 감시하지 못함 | warn |
 | 감시 시작 | blert 감시 시작 | 규칙 6개 · 현물 4 · 선물 2 | 없음 |
+| 일부 시장 연결 실패 | 선물 연결 실패 | 알림 1개를 지금은 감시하지 못합니다 · 계속 재시도 중 | warn |
+| 연결 복구 | 선물 연결 복구 | 알림 감시를 다시 시작했습니다 | 없음 |
+| 이전 실행 비정상 종료 | 감시 중단 구간 있음 | 14:02 ~ 14:47 동안 감시하지 못함 (구간이 날짜를 넘으면 날짜 포함) | warn |
 
 숫자는 천 단위 쉼표, 가격은 심볼의 호가 단위 자릿수, 퍼센트는 소수 첫째 자리(펀딩비는 셋째 자리)로 표시한다. 문구는 모두 `src/i18n/ko.json`의 키로 관리한다.
 
@@ -630,7 +641,7 @@ interface NotifyAdapter {
 | 알림 상태 | `state.json` | B4의 `RuleState` 목록 | v0.1 |
 | 설치된 프리셋 | `config.json` 안 | 프리셋 슬러그와 버전 | v0.1 |
 | 로그 | `logs/` | 실행 기록 (키 마스킹) | v0.1 |
-| 데몬 PID | `blert.pid` | 실행 중인 데몬 프로세스 번호 | v0.4 |
+| 실행 잠금·생존 신호 | `blert.pid` | 실행 중인 blert의 PID, 시작 시각, 마지막 생존 시각(15초마다 갱신). 정상 종료하면 삭제 (D-35) | v0.1 (포그라운드부터) |
 | API 키 | OS 키체인 | 키·시크릿 (파일에 저장 금지) | v0.2 |
 
 ### 저장 규칙
@@ -650,7 +661,7 @@ interface NotifyAdapter {
 
 | 모드 | 명령 | 버전 | 요구사항 | 동작 |
 | --- | --- | --- | --- | --- |
-| 포그라운드 | `run` | v0.1 | FR-RUN-01 | 현재 터미널에서 감시 코어 실행, console 어댑터 켜짐 |
+| 포그라운드 | `run` | v0.1 | FR-RUN-01 | 현재 터미널에서 감시 코어 실행, console 어댑터 켜짐, PID 파일로 중복 실행 방지 |
 | 백그라운드 데몬 | `start` / `stop` / `status` / `logs` | v0.4 | FR-RUN-03 | 분리된 프로세스로 실행, PID 파일로 중복 실행 방지 |
 | OS 서비스 | `service install` / `uninstall` | v0.5 | FR-RUN-04 | macOS launchd → Windows 작업 스케줄러 → Linux systemd 순 |
 
@@ -660,9 +671,11 @@ interface NotifyAdapter {
 
 ### 시작과 종료
 
-1. 시작: 설정 로드 → 스키마 확인·마이그레이션 → (키가 있으면) 권한 검사 → 스트림 연결 → 감시 시작 알림.
+1. 시작: 설정 로드 → 스키마 확인·마이그레이션 → 고지 동의 확인(D-36) → 실행 잠금(`blert.pid`, D-35) → (키가 있으면) 권한 검사 → 스트림 연결 → 감시 시작 알림.
 2. 종료(Ctrl+C, `stop`, 종료 신호): 새 이벤트 수신 중단 → 상태 저장 → 연결 종료 → PID 파일 삭제.
-3. 이미 데몬이 실행 중일 때 `run`이나 `start`를 하면 거부하고 `blert status`를 안내한다.
+3. 이미 실행 중일 때 `run`이나 `start`를 하면 거부한다. 포그라운드는 실행 중인 터미널에서 Ctrl+C로 종료하라고, 데몬(v0.4)은 `blert status`를 안내한다.
+4. 필요한 시장 중 일부만 연결되면 시작하되, 감시하지 못하는 규칙 수를 warn 알림과 콘솔로 알리고 계속 재시도한다. 복구되면 알린다 (D-37).
+5. 이전 실행의 `blert.pid`가 남아 있고 주인이 없으면(프로세스가 없거나 생존 신호가 60초 넘게 끊김) 그 구간을 감시 중단 알림으로 알린다 (D-35).
 
 ## B10. 오류 처리·로깅
 
@@ -672,7 +685,7 @@ interface NotifyAdapter {
 | --- | --- | --- | --- |
 | 사용자 입력 오류 | 잘못된 심볼, 문법 오류 | 원인 + 올바른 예시 + 오타 제안 | 1 |
 | 권한 오류 | 거래·출금 권한 켜진 키, HMAC 키 | 실행 거부 + 바이낸스에서 고치는 방법 안내 | 2 |
-| 연결 오류 | 네트워크 끊김, 24시간 만료 | 자동 재연결, 5분 초과 시 warn 알림 | 3 (시작 시 연결 불가일 때만) |
+| 연결 오류 | 네트워크 끊김, 24시간 만료 | 자동 재연결, 5분 초과 시 warn 알림 | 3 (시작할 때 필요한 시장이 모두 연결 불가일 때만. 일부만 실패하면 계속 실행) |
 | 외부 API 오류 | 레이트 리밋, 점검 | 대기 후 재시도, 반복되면 경고 | — |
 | 출력 오류 | 알림 권한 없음, 사운드 재생 실패 | console로 대체 + 1회 경고 | — |
 | 내부 오류 | 예상 못한 예외 | 로그 기록 후 감시 코어 재시작, 3회 연속이면 종료 | 9 |
@@ -723,7 +736,7 @@ interface NotifyAdapter {
 | AC-09 | FR-ALERT-01 | above 70000 규칙 | 가격 69,990 → 70,010 수신 | `rule.fired` 1회, 이후 71,000에도 재발동 없음 |
 | AC-10 | FR-ALERT-02 | `change 5% 1h` 규칙 | 1시간 전 대비 +5.1% 가격 수신 | 발동, 기준 가격과 변동률이 알림에 포함 |
 | AC-11 | FR-ALERT-03 | `volume x3 5m/1h` 규칙 | 5분 거래대금이 1시간 평균의 3.2배 | 발동 |
-| AC-12 | FR-ALERT-04 | `funding above 0.05%` 규칙 | 펀딩비 0.06% 수신 | 발동, warn 사운드 |
+| AC-12 | FR-ALERT-04 | `funding above 0.05%` 규칙 | 펀딩비 0.04% → 0.06% 수신 | 발동, warn 사운드. 시작부터 0.06%였다면 발동하지 않음 (D-34) |
 | AC-13 | FR-REP-01 | 쿨다운 30분 규칙 발동 직후 | 10분 뒤 조건 재충족 | 발동 안 함. 31분 뒤 재충족 시 발동 |
 | AC-14 | FR-REP-01 | 히스테리시스 20% 펀딩비 규칙 발동 후 | 0.045% → 0.035% → 0.06% | 0.04% 아래로 내려간 뒤에만 재발동 |
 | AC-15 | FR-REP-02 | — | `--mode` 없이 각 유형 규칙 추가 | B4 기본 반복 정책이 적용됨 |
