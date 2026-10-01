@@ -104,17 +104,17 @@ describe('패키지 규칙 (NFR-SEC-03, NFR-COMP-02)', () => {
 describe('수용 기준 커버리지 (CLAUDE.md 테스트 규칙)', () => {
   const names = files(join(ROOT, 'test'), /\.test\.ts$/).flatMap((f) => [...readFileSync(f, 'utf8').matchAll(/\bit\('(AC-\d{2})[ ,]/g)].map((m) => m[1]!));
 
-  it('AC-01 ~ AC-24와 AC-26 ~ AC-34는 이름이 해당 ID로 시작하는 자동 테스트가 하나 이상 있다 (AC-25는 수동)', () => {
-    // v0.2 작업 중 아직 구현하지 않은 항목. 구현하면 여기서 지운다 (마지막 단계에서 비어 있어야 한다).
+  it('AC-01 ~ AC-24와 AC-26 ~ AC-41은 이름이 해당 ID로 시작하는 자동 테스트가 하나 이상 있다 (AC-25는 수동)', () => {
+    // 아직 구현하지 않은 항목. 구현하면 여기서 지운다 (마지막 단계에서 비어 있어야 한다).
     const PENDING: string[] = [];
-    const ids = Array.from({ length: 34 }, (_, i) => i + 1)
+    const ids = Array.from({ length: 41 }, (_, i) => i + 1)
       .filter((n) => n !== 25)
       .map((n) => `AC-${String(n).padStart(2, '0')}`)
       .filter((id) => !PENDING.includes(id));
     expect(ids.filter((id) => !names.includes(id))).toEqual([]);
   });
 
-  it('현재 목표(v0.2)를 넘는 수용 기준(AC-35 이상) 테스트는 없다', () => {
-    expect(names.filter((n) => Number(n.slice(3)) > 34)).toEqual([]);
+  it('현재 목표(v0.3)를 넘는 수용 기준(AC-42 이상) 테스트는 없다', () => {
+    expect(names.filter((n) => Number(n.slice(3)) > 41)).toEqual([]);
   });
 });

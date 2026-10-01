@@ -81,6 +81,16 @@ describe('cli key add / remove (FR-KEY-01)', () => {
     }
   });
 
+  it('AC-38 선물 권한(enableFutures)만 켜진 키도 선물 주문이 가능하므로 저장하지 않고 종료 코드 2로 안내한다 (D-53)', async () => {
+    const hh = await withAnswers([FAKE_API_KEY, pemPath]);
+    hh.setFetch(jsonResponse(restrictions({ enableFutures: true })));
+    expect(await addKey(hh)).toBe(2);
+    expect(hh.err[0]).toContain('enableFutures');
+    expect(hh.err[0]).toContain('읽기 전용이 아니어서');
+    expect(hh.keychain.stored).toBeUndefined();
+    await hh.cleanup();
+  });
+
   it('AC-28 HMAC 시크릿을 담은 파일은 바이낸스에 요청하기 전에 거부하고 Ed25519 생성 방법을 안내한다', async () => {
     const hmacFile = join(pemDir, 'secret.txt');
     await writeFile(hmacFile, 'x'.repeat(64));

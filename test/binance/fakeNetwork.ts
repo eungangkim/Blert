@@ -88,8 +88,8 @@ export const miniTicker = (s: string, price: number, quoteVolume = 1) => ({
 export const klineMsg = (s: string, openTime: number, close: number, quoteVolume: number, closed = false) => ({
   e: 'kline', E: Date.now(), s, k: { t: openTime, T: openTime + 59_999, s, i: '1m', c: String(close), q: String(quoteVolume), x: closed },
 });
-export const markPrice = (s: string, rate: number, next: number) => ({
-  e: 'markPriceUpdate', E: Date.now(), s, p: '1', i: '1', P: '1', r: String(rate), T: next,
+export const markPrice = (s: string, rate: number, next: number, mark = '1') => ({
+  e: 'markPriceUpdate', E: Date.now(), s, p: mark, i: '1', P: '1', r: String(rate), T: next,
 });
 
 /** 시작 시각부터 count개의 1분봉 REST 행 */
