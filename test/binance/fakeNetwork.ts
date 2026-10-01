@@ -54,15 +54,16 @@ export class FakeSocket implements WebSocketLike {
 
 export class FakeNetwork {
   sockets: FakeSocket[] = [];
-  /** true면 새 연결이 곧바로 끊긴다 (서버 다운) */
-  refuse = false;
+  /** true면 새 연결이 곧바로 끊긴다 (서버 다운). 함수면 그 주소에 대해서만 거부한다. */
+  refuse: boolean | ((url: string) => boolean) = false;
   /** false면 SUBSCRIBE 응답을 보내지 않는다 */
   autoAck = true;
 
   factory = (url: string): FakeSocket => {
     const s = new FakeSocket(url, this);
     this.sockets.push(s);
-    queueMicrotask(() => (this.refuse ? s.serverDrop() : s.serverOpen()));
+    const refused = typeof this.refuse === 'function' ? this.refuse(url) : this.refuse;
+    queueMicrotask(() => (refused ? s.serverDrop() : s.serverOpen()));
     return s;
   };
 

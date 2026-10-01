@@ -1,6 +1,6 @@
 import type { Alert, Rule, SoundKind } from '../shared/types.js';
 import { baseAsset, quoteAsset } from '../shared/symbol.js';
-import { formatCompact, formatDuration, formatExact, formatPct, formatPrice } from '../shared/format.js';
+import { formatCompact, formatExact, formatPct, formatPctExact, formatPrice } from '../shared/format.js';
 
 /**
  * 규칙 조건을 '값 · 기준 · 방향' 하나로 줄인 측정 결과.
@@ -12,6 +12,8 @@ export interface Measurement {
   direction: 'above' | 'below';
   /** true면 기준과 같을 때는 미충족 (펀딩비 '초과') */
   strict?: boolean;
+  /** true면 '넘는 순간'(미충족 → 충족)에만 발동한다. 가격·펀딩비. 변동률·거래량은 현재 수준을 본다. */
+  edge?: boolean;
   kind: SoundKind;
   titleKey: string;
   params: Record<string, string | number>;
@@ -41,6 +43,7 @@ export function measurePrice(rule: Rule, price: number): Measurement | null {
     value: price,
     threshold: c.price,
     direction: c.direction,
+    edge: true,
     kind: c.direction === 'above' ? 'up' : 'down',
     titleKey: `alert.price.${c.direction}.title`,
     params: { ...base(rule), target: formatExact(c.price), price: formatPrice(price) },
@@ -62,7 +65,7 @@ export function measureChange(rule: Rule, price: number, basePrice: number | und
     titleKey: 'alert.change.title',
     params: {
       ...base(rule),
-      window: formatDuration(c.windowMs),
+      windowMs: c.windowMs, // notify가 '1시간' 같은 문장으로 바꾼다 (xxxMs → xxx)
       pct: formatPct(pct, 1, true),
       from: formatPrice(basePrice),
       to: formatPrice(price),
@@ -85,8 +88,8 @@ export function measureVolume(rule: Rule, shortSum: number, longSum: number): Me
     params: {
       ...base(rule),
       ratio: (Math.round(ratio * 10) / 10).toFixed(1),
-      short: formatDuration(c.shortMs),
-      long: formatDuration(c.longMs),
+      shortMs: c.shortMs,
+      longMs: c.longMs,
       shortVol: formatCompact(shortSum),
       avgVol: formatCompact(avg),
     },
@@ -102,9 +105,10 @@ export function measureFunding(rule: Rule, ratePct: number): Measurement | null 
     threshold: c.pct,
     direction: c.direction,
     strict: true,
+    edge: true,
     kind: 'warn',
     titleKey: `alert.funding.${c.direction}.title`,
-    params: { ...base(rule), rate: formatPct(ratePct, 3), threshold: formatPct(c.pct, 3) },
+    params: { ...base(rule), rate: formatPct(ratePct, 3), threshold: formatPctExact(c.pct) },
   };
 }
 

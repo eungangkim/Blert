@@ -6,7 +6,8 @@ import { Runtime, type ProcessLike, type RuntimeOptions } from '../../src/runtim
 import { createNotifier } from '../../src/notify/index.js';
 import { clockHM } from '../../src/notify/render.js';
 import { Store } from '../../src/store/index.js';
-import { FakeClock } from '../../src/shared/clock.js';
+import { writePidFile } from '../../src/store/pid.js';
+import { FakeClock, iso } from '../../src/shared/clock.js';
 import { BlertError } from '../../src/shared/errors.js';
 import type { Rule } from '../../src/shared/types.js';
 import { FakeNetwork, miniTicker } from '../binance/fakeNetwork.js';
@@ -62,6 +63,9 @@ afterEach(async () => {
 async function setup(drafts: Draft[], extra: Partial<RuntimeOptions> = {}, fetchFn?: typeof fetch) {
   const store = new Store(dir);
   if (drafts.length) await store.addRules(drafts);
+  await store.updateConfig((c) => {
+    c.disclaimerAccepted = true; // init을 마친 상태
+  });
   const net = new FakeNetwork();
   const clock = new FakeClock(T0);
   const out: string[] = [];
@@ -108,7 +112,9 @@ describe('runtime 시작·종료 (FR-RUN-01, B9)', () => {
     expect(out.join('\n')).toContain('감시 중입니다. 종료하려면 Ctrl+C');
     expect(net.sockets.map((s) => new URL(s.url).host).sort()).toEqual(['fstream.binance.com', 'stream.binance.com:9443']);
 
-    net.push('btcusdt@miniTicker', miniTicker('BTCUSDT', 70_010)); // 1회성 규칙 발동
+    expect((await store.readRunLock())?.pid).toBe(process.pid); // 실행 중에는 잠금 파일이 있다
+    net.push('btcusdt@miniTicker', miniTicker('BTCUSDT', 69_000)); // 기준(70,000) 아래에서 시작
+    net.push('btcusdt@miniTicker', miniTicker('BTCUSDT', 70_010)); // 넘는 순간: 1회성 규칙 발동
     await waitFor(() => out.some((l) => l.includes('BTC 70,000 돌파')));
 
     proc.emit('SIGINT');
@@ -121,6 +127,7 @@ describe('runtime 시작·종료 (FR-RUN-01, B9)', () => {
     expect(out.join('\n')).toContain('감시를 종료했습니다');
     expect(net.sockets.every((s) => s.closed)).toBe(true); // 연결 종료
     expect(proc.size).toBe(0); // 신호 처리기 정리
+    expect(await store.readRunLock()).toBeUndefined(); // 정상 종료하면 PID 파일 삭제 (B9)
     const log = await logText();
     expect(log).toContain('starting with 2 rules');
     expect(log).toContain('stopped (exit 0)');
@@ -268,6 +275,7 @@ describe('runtime 규칙 변경 반영', () => {
     const { rt, net, proc, started, out } = await setup([price('BTCUSDT', 70000), price('ETHUSDT', 3000)]);
     const done = rt.runForeground();
     await started();
+    net.push('btcusdt@miniTicker', miniTicker('BTCUSDT', 69_000));
     net.push('btcusdt@miniTicker', miniTicker('BTCUSDT', 70_010));
     await waitFor(() => out.some((l) => l.includes('BTC 70,000 돌파')));
     await waitFor(() => net.sockets[0]!.sent.some((m) => m.method === 'UNSUBSCRIBE'), 3000);
@@ -342,5 +350,127 @@ describe('runtime 내부 오류 (B10)', () => {
     expect(await logText()).not.toContain('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ab');
     proc.emit('SIGINT');
     await done;
+  });
+});
+
+const waitForAsync = async (cond: () => Promise<boolean>, ms = 4000): Promise<void> => {
+  const start = Date.now();
+  while (!(await cond())) {
+    if (Date.now() - start > ms) throw new Error('timeout waiting for condition');
+    await new Promise((r) => setTimeout(r, 10));
+  }
+};
+
+describe('runtime 시작 조건 (NFR-LEGAL-01)', () => {
+  it('고지에 동의하지 않았으면 감시를 시작하지 않고 init을 안내한다 (종료 코드 1)', async () => {
+    const s = await setup([price('BTCUSDT', 70000)]);
+    await s.store.updateConfig((c) => {
+      c.disclaimerAccepted = false;
+    });
+    await expect(s.rt.runForeground()).rejects.toMatchObject({ messageKey: 'err.runNeedInit', exitCode: 1 });
+    expect(s.net.sockets).toHaveLength(0);
+    expect(await s.store.readRunLock()).toBeUndefined();
+  });
+});
+
+describe('runtime 일부 시장만 연결될 때 (B10, NFR-REL-02)', () => {
+  it('선물 연결이 안 돼도 현물은 감시를 시작하고, 감시하지 못하는 규칙 수를 알린 뒤 복구되면 알린다', async () => {
+    const s = await setup([price('BTCUSDT', 70000), funding]);
+    s.net.refuse = (url) => url.includes('fstream');
+    const done = s.rt.runForeground();
+    await s.started('감시 시작'); // 종료 코드 3으로 끝나지 않는다
+    const text = s.out.join('\n');
+    expect(text).toContain('선물 시장에 연결하지 못했습니다. 이 시장의 알림 1개는 지금 감시하지 못합니다');
+    expect(text).toContain('연결이 끊겼습니다'); // 재시도 중
+
+    // 연결된 현물은 정상 동작한다
+    s.net.push('btcusdt@miniTicker', miniTicker('BTCUSDT', 69_000));
+    s.net.push('btcusdt@miniTicker', miniTicker('BTCUSDT', 70_010));
+    await waitFor(() => s.out.some((l) => l.includes('BTC 70,000 돌파')));
+
+    s.net.refuse = false; // 선물 서버 복구
+    await waitFor(() => s.out.some((l) => l.includes('선물 시장 연결이 복구되었습니다')), 5000);
+    expect(s.out.join('\n')).toContain('이 시장의 알림도 감시합니다');
+    expect(await s.logText()).toContain('futures connection recovered');
+
+    s.proc.emit('SIGINT');
+    expect(await done).toBe(0);
+  });
+
+  it('필요한 시장이 모두 연결되지 않으면 종료 코드 3 (일부만 실패했을 때와 구분)', async () => {
+    const s = await setup([price('BTCUSDT', 70000), funding]);
+    s.net.refuse = true;
+    expect(await s.rt.runForeground()).toBe(3);
+    expect(s.err[0]).toContain('(spot, futures)');
+  });
+});
+
+describe('runtime 중복 실행 방지·비정상 종료 감지 (blert.pid, NFR-REL-02)', () => {
+  it('이미 실행 중이면 두 번째 실행을 거부하고, 첫 실행이 끝나면 다시 시작할 수 있다', async () => {
+    const a = await setup([price('BTCUSDT', 1e9)]);
+    const doneA = a.rt.runForeground();
+    await a.started();
+
+    const b = await setup([]); // 같은 설정 폴더
+    await expect(b.rt.runForeground()).rejects.toMatchObject({ messageKey: 'err.runAlready', exitCode: 1 });
+    expect(b.net.sockets).toHaveLength(0);
+
+    a.proc.emit('SIGINT');
+    await doneA;
+    expect(await a.store.readRunLock()).toBeUndefined();
+
+    const c = await setup([]);
+    const doneC = c.rt.runForeground();
+    await c.started();
+    c.proc.emit('SIGINT');
+    expect(await doneC).toBe(0);
+  });
+
+  it('생존 신호를 주기적으로 갱신한다', async () => {
+    const s = await setup([price('BTCUSDT', 1e9)], { timing: { heartbeatMs: 20 } });
+    const done = s.rt.runForeground();
+    await s.started();
+    expect((await s.store.readRunLock())!.heartbeatAt).toBe(iso(T0));
+    s.clock.advance(5000);
+    await waitForAsync(async () => (await s.store.readRunLock())?.heartbeatAt === iso(T0 + 5000));
+    s.proc.emit('SIGINT');
+    await done;
+  });
+
+  it('이전 실행이 정상 종료하지 못했으면(주인이 죽은 잠금 파일) 그 구간을 감시 중단으로 알리고 잠금을 가져온다', async () => {
+    const s = await setup([price('BTCUSDT', 1e9)]);
+    // 10분 전까지 살아 있던 프로세스가 죽으면서 남긴 파일 (존재하지 않는 PID)
+    await writePidFile(join(dir, 'blert.pid'), { schemaVersion: 1, pid: 2_147_483_646, startedAt: iso(T0 - 40 * MIN), heartbeatAt: iso(T0 - 10 * MIN) });
+    const done = s.rt.runForeground();
+    await waitFor(() => s.out.some((l) => l.includes('감시 중단 구간 있음')));
+    const line = s.out.find((l) => l.includes('감시 중단 구간 있음'))!;
+    expect(line).toContain(`${clockHM(T0 - 10 * MIN)} ~ ${clockHM(T0)} 동안 감시하지 못함`);
+    expect(await s.logText()).toContain('did not exit cleanly');
+    expect((await s.store.readRunLock())?.pid).toBe(process.pid);
+    s.proc.emit('SIGINT');
+    await done;
+  });
+
+  it('프로세스 번호가 살아 있어도 생존 신호가 오래 끊긴 파일은 낡은 것으로 보고 가져온다 (번호 재사용 대비)', async () => {
+    const s = await setup([price('BTCUSDT', 1e9)]);
+    await writePidFile(join(dir, 'blert.pid'), { schemaVersion: 1, pid: process.pid, startedAt: iso(T0 - 20 * MIN), heartbeatAt: iso(T0 - 5 * MIN) });
+    const done = s.rt.runForeground();
+    await waitFor(() => s.out.some((l) => l.includes('감시 중단 구간 있음')));
+    s.proc.emit('SIGINT');
+    expect(await done).toBe(0);
+  });
+
+  it('정상 종료한 뒤에는 중단 구간 안내가 없다', async () => {
+    const s = await setup([price('BTCUSDT', 1e9)]);
+    const done = s.rt.runForeground();
+    await s.started();
+    s.proc.emit('SIGINT');
+    await done;
+    const again = await setup([]);
+    const done2 = again.rt.runForeground();
+    await again.started();
+    expect(again.out.join('\n')).not.toContain('감시 중단 구간');
+    again.proc.emit('SIGINT');
+    await done2;
   });
 });

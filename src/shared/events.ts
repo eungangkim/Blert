@@ -10,6 +10,7 @@ export type BlertEvent =
   | { type: 'rules.changed'; ts: string; ruleIds: number[] }
   | { type: 'conn.status'; ts: string; stream: string; state: 'connecting' | 'open' | 'retrying' | 'closed'; attempt: number }
   // ongoing: 5분 넘게 끊긴 채로 아직 복구되지 않았음을 알리는 경고. 없으면 끝난 감시 중단 구간이다.
-  | { type: 'conn.gap'; ts: string; from: string; to: string; reason: 'sleep' | 'disconnect'; ongoing?: boolean };
+  // reason exit: 이전 실행이 정상 종료하지 못해(강제 종료, 보안 프로그램, 정전 등) 생긴 중단 구간.
+  | { type: 'conn.gap'; ts: string; from: string; to: string; reason: 'sleep' | 'disconnect' | 'exit'; ongoing?: boolean };
 
 export type EventOf<T extends BlertEvent['type']> = Extract<BlertEvent, { type: T }>;

@@ -5,9 +5,12 @@ import type { Rule, RuleState } from '../shared/types.js';
 import { BlertError } from '../shared/errors.js';
 import { systemClock, iso, type Clock } from '../shared/clock.js';
 import { readJson, writeJson, type FileSpec } from './jsonfile.js';
+import { PID_SCHEMA_VERSION, holderIsRunning, readPidFile, writePidFile, type AcquireResult, type PidFile } from './pid.js';
 import { withLock, type LockOptions } from './lock.js';
 
 export const SCHEMA_VERSION = 1;
+
+export type { PidFile, AcquireResult } from './pid.js';
 
 export interface Config {
   schemaVersion: number;
@@ -136,6 +139,41 @@ export class Store {
       if (ids.length) this.opts.onRulesChanged?.(ids);
       return ids;
     });
+  }
+
+  // --- 실행 잠금·생존 신호 (blert.pid) ---
+  private get pidPath(): string {
+    return join(this.dir, 'blert.pid');
+  }
+
+  readRunLock(): Promise<PidFile | undefined> {
+    return readPidFile(this.pidPath);
+  }
+
+  /**
+   * 실행 잠금을 잡는다. 이미 실행 중인 주인이 있으면 거부(holder)하고, 주인이 죽었거나 생존 신호가 끊긴
+   * 낡은 파일이면 이전 실행(previous)을 돌려주며 가져온다 — 이전 실행이 정상 종료하지 못했다는 뜻이다.
+   */
+  acquireRunLock(o: { pid: number; now: number; staleMs: number }): Promise<AcquireResult> {
+    return this.locked(async () => {
+      const existing = await readPidFile(this.pidPath);
+      if (existing && holderIsRunning(existing, o.now, o.staleMs)) return { ok: false, holder: existing };
+      const at = iso(o.now);
+      await writePidFile(this.pidPath, { schemaVersion: PID_SCHEMA_VERSION, pid: o.pid, startedAt: at, heartbeatAt: at });
+      return { ok: true, previous: existing };
+    });
+  }
+
+  /** 생존 신호를 갱신한다. 파일의 주인이 내가 아니면 건드리지 않는다. */
+  async touchRunLock(pid: number, nowMs: number): Promise<void> {
+    const file = await readPidFile(this.pidPath);
+    if (file?.pid === pid) await writePidFile(this.pidPath, { ...file, heartbeatAt: iso(nowMs) });
+  }
+
+  /** 정상 종료: 내 잠금 파일을 지운다 (B9) */
+  async releaseRunLock(pid: number): Promise<void> {
+    const file = await readPidFile(this.pidPath);
+    if (file?.pid === pid) await fs.rm(this.pidPath, { force: true });
   }
 
   // --- state (규칙과 분리 저장, B8) ---

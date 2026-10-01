@@ -11,6 +11,7 @@ export interface Alert {
   ruleId: number;
   kind: SoundKind;
   titleKey: string;
+  /** 문장에 채울 값. market(spot/futures)과 이름이 Ms로 끝나는 기간(ms)은 notify가 번역한다 (engine은 i18n을 쓰지 않는다, B2) */
   params: Record<string, string | number>;
   firedAt: string;
   /** 규칙의 --sound 지정 (B3 고급 옵션). 없으면 kind를 따르고, 'off'면 이 알림은 무음 */

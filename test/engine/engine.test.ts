@@ -29,7 +29,7 @@ describe('engine 가격 (FR-ALERT-01)', () => {
   it('목표가는 입력한 값 그대로 표시한다', () => {
     const engine = new Engine();
     engine.setRules([rule({ type: 'price', direction: 'above', price: 0.00001234 }, { kind: 'once' }, { id: 301 }), rule({ type: 'price', direction: 'above', price: 1 }, { kind: 'once' }, { id: 302, symbol: 'ETHUSDT' })]);
-    const [a, b] = fire(engine, ticker(T0, 1), ticker(T0, 5, 'spot', 'ETHUSDT'));
+    const [a, b] = fire(engine, ticker(T0, 0.00001), ticker(T0, 0.5, 'spot', 'ETHUSDT'), ticker(T0 + 1000, 0.00002), ticker(T0 + 1000, 5, 'spot', 'ETHUSDT'));
     expect([a!.params.target, b!.params.target]).toEqual(['0.00001234', '1']);
   });
 
@@ -37,7 +37,8 @@ describe('engine 가격 (FR-ALERT-01)', () => {
     const engine = new Engine();
     engine.setRules([rule({ type: 'price', direction: 'below', price: 65000 }, { kind: 'once' })]);
     expect(fire(engine, ticker(T0, 60_000, 'futures'), ticker(T0, 60_000, 'spot', 'ETHUSDT'))).toHaveLength(0);
-    const [a] = fire(engine, ticker(T0, 64_980));
+    expect(fire(engine, ticker(T0, 66_000))).toHaveLength(0); // 기준 위에서 시작
+    const [a] = fire(engine, ticker(T0 + 1000, 64_980));
     expect(a).toMatchObject({ kind: 'down', titleKey: 'alert.price.below.title' });
   });
 
@@ -47,9 +48,39 @@ describe('engine 가격 (FR-ALERT-01)', () => {
     quiet.sound = 'off';
     const plain = rule({ type: 'price', direction: 'above', price: 1 }, { kind: 'once' }, { id: 202, symbol: 'ETHUSDT' });
     engine.setRules([quiet, plain]);
-    const [a, b] = fire(engine, ticker(T0, 5), ticker(T0, 5, 'spot', 'ETHUSDT'));
+    const [a, b] = fire(engine, ticker(T0, 0.5), ticker(T0, 0.5, 'spot', 'ETHUSDT'), ticker(T0 + 1000, 5), ticker(T0 + 1000, 5, 'spot', 'ETHUSDT'));
     expect(a!.sound).toBe('off');
     expect('sound' in b!).toBe(false);
+  });
+
+  it('AC-09 시작할 때 이미 70,000 위면 알리지 않고, 내려갔다가 다시 넘는 순간에 1회 알린다 (above)', () => {
+    const engine = new Engine();
+    engine.setRules([rule({ type: 'price', direction: 'above', price: 70000 }, { kind: 'cooldown', ms: MIN })]);
+    expect(fire(engine, ticker(T0, 71_000), ticker(T0 + 1000, 71_500))).toHaveLength(0); // 이미 위: 기준만 기록
+    expect(fire(engine, ticker(T0 + 2000, 69_000))).toHaveLength(0);
+    expect(fire(engine, ticker(T0 + 3000, 70_500))).toHaveLength(1); // 넘는 순간
+    expect(fire(engine, ticker(T0 + 4000, 71_000))).toHaveLength(0); // 위에 머무는 동안은 알리지 않는다
+  });
+
+  it('AC-09 시작할 때 이미 65,000 아래면 알리지 않고, 올라갔다가 다시 내려가는 순간에 알린다 (below)', () => {
+    const engine = new Engine();
+    engine.setRules([rule({ type: 'price', direction: 'below', price: 65000 }, { kind: 'cooldown', ms: MIN })]);
+    expect(fire(engine, ticker(T0, 64_000), ticker(T0 + 1000, 63_000))).toHaveLength(0);
+    expect(fire(engine, ticker(T0 + 2000, 66_000))).toHaveLength(0);
+    expect(fire(engine, ticker(T0 + 3000, 64_900))).toHaveLength(1);
+  });
+
+  it('AC-09 규칙이 일시정지됐다 다시 켜지면 기준을 새로 잡아, 그때 이미 위면 알리지 않는다', () => {
+    const engine = new Engine();
+    const r = rule({ type: 'price', direction: 'above', price: 100 }, { kind: 'cooldown', ms: MIN });
+    engine.setRules([r]);
+    fire(engine, ticker(T0, 99));
+    expect(fire(engine, ticker(T0 + 1000, 101))).toHaveLength(1);
+    engine.setRules([{ ...r, enabled: false }]); // pause
+    engine.setRules([r]); // resume: 가격은 여전히 100 위
+    expect(fire(engine, ticker(T0 + 5 * MIN, 102))).toHaveLength(0);
+    fire(engine, ticker(T0 + 6 * MIN, 98));
+    expect(fire(engine, ticker(T0 + 7 * MIN, 103))).toHaveLength(1);
   });
 
   it('일시정지(비활성) 규칙은 평가하지 않는다', () => {
@@ -72,7 +103,7 @@ describe('engine 변동률 (FR-ALERT-02)', () => {
     expect(fire(engine, ticker(T0 + HOUR, 1049))).toHaveLength(0);
     const [a] = fire(engine, ticker(T0 + HOUR + 1000, 1051));
     expect(a).toMatchObject({ kind: 'up', titleKey: 'alert.change.title' });
-    expect(a!.params).toMatchObject({ window: '1h', pct: '+5.1%', from: '1,000', to: '1,051' });
+    expect(a!.params).toMatchObject({ windowMs: 3_600_000, pct: '+5.1%', from: '1,000', to: '1,051' });
   });
 
   it('down 방향은 하락에만, 양방향은 하락도 잡고 kind가 down이 된다', () => {
@@ -128,7 +159,7 @@ describe('engine 변동률 (FR-ALERT-02)', () => {
     let fired: Alert[] = [];
     for (let s = 0; s <= 86_400 + 30; s++) fired = fired.concat(fire(engine, ticker(T0 + s * 1000, s < 86_400 ? 100 : 106)));
     expect(fired.length).toBeGreaterThan(0);
-    expect(fired[0]!.params).toMatchObject({ window: '1d', from: '100.00' });
+    expect(fired[0]!.params).toMatchObject({ windowMs: 86_400_000, from: '100.00' });
     const h = internals.prices.get('spot:BTCUSDT')!;
     expect(h.bucketMs).toBe(24_000);
     expect(h.size).toBeLessThan(3_700);
@@ -184,7 +215,7 @@ describe('engine 거래량 (FR-ALERT-03)', () => {
     const alerts = fire(engine, ...minutes(4000));
     expect(alerts).toHaveLength(1);
     expect(alerts[0]).toMatchObject({ kind: 'up', titleKey: 'alert.volume.title' });
-    expect(alerts[0]!.params).toMatchObject({ ratio: '3.2', short: '5m', long: '1h', shortVol: '20.0K', avgVol: '6.3K' });
+    expect(alerts[0]!.params).toMatchObject({ ratio: '3.2', shortMs: 300_000, longMs: 3_600_000, shortVol: '20.0K', avgVol: '6.3K' });
   });
 
   it('배수에 못 미치면 발동하지 않는다', () => {
@@ -217,7 +248,15 @@ describe('engine 펀딩비 (FR-ALERT-04)', () => {
     expect(fire(engine, funding(T0, 0.04))).toHaveLength(0);
     const [a] = fire(engine, funding(T0 + 1000, 0.06));
     expect(a).toMatchObject({ kind: 'warn', titleKey: 'alert.funding.above.title' });
-    expect(a!.params).toMatchObject({ rate: '0.060%', threshold: '0.050%', coin: 'BTC' });
+    expect(a!.params).toMatchObject({ rate: '0.060%', threshold: '0.05%', coin: 'BTC' });
+  });
+
+  it('AC-12 시작할 때 이미 기준을 넘은 펀딩비는 알리지 않고, 내려갔다가 다시 넘을 때 알린다', () => {
+    const engine = new Engine();
+    engine.setRules([rule({ type: 'funding', direction: 'above', pct: 0.05 }, DEFAULT_REPEAT.funding)]);
+    expect(fire(engine, funding(T0, 0.07), funding(T0 + 3000, 0.08))).toHaveLength(0);
+    expect(fire(engine, funding(T0 + 6000, 0.03))).toHaveLength(0);
+    expect(fire(engine, funding(T0 + 9000, 0.06))).toHaveLength(1);
   });
 
   it('기준과 같은 값은 초과가 아니므로 발동하지 않는다', () => {
@@ -238,9 +277,12 @@ describe('engine 반복 정책 (FR-REP-01)', () => {
   it('AC-13 쿨다운 30분: 10분 뒤에는 발동하지 않고 31분 뒤에는 발동한다', () => {
     const engine = new Engine();
     engine.setRules([rule({ type: 'price', direction: 'above', price: 100 }, { kind: 'cooldown', ms: 30 * MIN })]);
-    expect(fire(engine, ticker(T0, 101))).toHaveLength(1);
-    expect(fire(engine, ticker(T0 + 10 * MIN, 101))).toHaveLength(0);
-    expect(fire(engine, ticker(T0 + 31 * MIN, 101))).toHaveLength(1);
+    fire(engine, ticker(T0, 99)); // 기준 아래에서 시작
+    expect(fire(engine, ticker(T0 + 1000, 101))).toHaveLength(1); // 넘는 순간
+    fire(engine, ticker(T0 + 5 * MIN, 99));
+    expect(fire(engine, ticker(T0 + 10 * MIN, 101))).toHaveLength(0); // 10분 뒤 재충족: 쿨다운 중
+    fire(engine, ticker(T0 + 20 * MIN, 99));
+    expect(fire(engine, ticker(T0 + 31 * MIN, 101))).toHaveLength(1); // 31분 뒤 재충족: 쿨다운 끝
   });
 
   it('AC-14 히스테리시스 20%: 0.04% 아래로 내려간 뒤에만 재발동한다', () => {
@@ -248,6 +290,7 @@ describe('engine 반복 정책 (FR-REP-01)', () => {
     engine.setRules([rule({ type: 'funding', direction: 'above', pct: 0.05 }, { kind: 'hysteresis', widthPct: 20 })]);
     let t = T0;
     const step = (rate: number) => fire(engine, funding((t += 1000), rate)).length;
+    expect(step(0.04)).toBe(0); // 기준 아래에서 시작
     expect(step(0.06)).toBe(1); // 첫 발동, armed=false
     expect(step(0.045)).toBe(0); // 기준 아래지만 0.04까지는 안 내려감
     expect(step(0.06)).toBe(0); // 아직 재무장 안 됨
@@ -261,6 +304,7 @@ describe('engine 반복 정책 (FR-REP-01)', () => {
     engine.setRules([rule({ type: 'funding', direction: 'below', pct: -0.05 }, { kind: 'hysteresis', widthPct: 20 })]);
     let t = T0;
     const step = (rate: number) => fire(engine, funding((t += 1000), rate)).length;
+    expect(step(-0.04)).toBe(0);
     expect(step(-0.06)).toBe(1);
     expect(step(-0.045)).toBe(0); // -0.04 이상이어야 재무장
     expect(step(-0.06)).toBe(0);
@@ -273,6 +317,7 @@ describe('engine 반복 정책 (FR-REP-01)', () => {
     engine.setRules([rule({ type: 'price', direction: 'above', price: 70000 }, { kind: 'hysteresis', widthPct: 0.5 })]);
     let t = T0;
     const step = (p: number) => fire(engine, ticker((t += 1000), p)).length;
+    expect(step(69_000)).toBe(0); // 기준 아래에서 시작
     expect(step(70_100)).toBe(1);
     expect(step(69_800)).toBe(0); // 69,650까지는 안 내려감
     expect(step(70_100)).toBe(0);
@@ -288,7 +333,10 @@ describe('engine 반복 정책 (FR-REP-01)', () => {
       rule({ type: 'funding', direction: 'above', pct: 0.01 }, { kind: 'once' }, { id: 103 }),
       rule({ type: 'funding', direction: 'below', pct: 0.5 }, { kind: 'once' }, { id: 104, symbol: 'SOLUSDT' }),
     ]);
-    const alerts = fire(engine, ticker(T0, 5), ticker(T0, 5, 'spot', 'ETHUSDT'), funding(T0, 0.05), funding(T0, 0.05, 'SOLUSDT'));
+    const alerts = [
+      ...fire(engine, ticker(T0, 0.5), ticker(T0, 20, 'spot', 'ETHUSDT'), funding(T0, 0.005), funding(T0, 0.9, 'SOLUSDT')), // 기준 기록
+      ...fire(engine, ticker(T0 + 1000, 5), ticker(T0 + 1000, 5, 'spot', 'ETHUSDT'), funding(T0 + 1000, 0.05), funding(T0 + 1000, 0.05, 'SOLUSDT')),
+    ];
     expect(alerts).toHaveLength(4);
     for (const a of alerts) {
       expect(hasMessage(a.titleKey), a.titleKey).toBe(true);
@@ -315,11 +363,12 @@ describe('engine 저장소·이벤트 버스 연동', () => {
     await store.addRules([draft(70000)]);
     const engine = new Engine({ store });
     await engine.init();
-    engine.handle(ticker(T0, 70_010));
+    engine.handle(ticker(T0, 69_000));
+    engine.handle(ticker(T0 + 1000, 70_010));
     await engine.flush();
     const [saved] = await store.loadRules();
     expect(saved).toMatchObject({ id: 1, enabled: false });
-    expect(await store.loadStates()).toMatchObject([{ ruleId: 1, lastFiredAt: '2026-10-03T00:00:00.000Z' }]);
+    expect(await store.loadStates()).toMatchObject([{ ruleId: 1, lastFiredAt: '2026-10-03T00:00:01.000Z' }]);
   });
 
   it('재시작해도 쿨다운 상태를 이어받는다', async () => {
@@ -327,12 +376,15 @@ describe('engine 저장소·이벤트 버스 연동', () => {
     await store.addRules([draft(100, { kind: 'cooldown', ms: 30 * MIN })]);
     const first = new Engine({ store });
     await first.init();
-    expect(first.handle(ticker(T0, 101))).toHaveLength(1);
+    first.handle(ticker(T0, 99));
+    expect(first.handle(ticker(T0 + 1000, 101))).toHaveLength(1);
     await first.flush();
 
-    const second = new Engine({ store });
+    const second = new Engine({ store }); // 재시작: 기준은 새로 잡지만 쿨다운 상태는 이어받는다
     await second.init();
+    second.handle(ticker(T0 + 9 * MIN, 99));
     expect(second.handle(ticker(T0 + 10 * MIN, 101))).toHaveLength(0);
+    second.handle(ticker(T0 + 20 * MIN, 99));
     expect(second.handle(ticker(T0 + 31 * MIN, 101))).toHaveLength(1);
     await second.flush();
   });
@@ -352,13 +404,15 @@ describe('engine 저장소·이벤트 버스 연동', () => {
     await store.addRules([draft(50)]);
     bus.emit({ type: 'rules.changed', ts: '', ruleIds: [1] });
     await engine.flush();
-    bus.emit(ticker(T0 + 1000, 100));
+    bus.emit(ticker(T0 + 1000, 40)); // 기준(50) 아래에서 시작
+    bus.emit(ticker(T0 + 1500, 100));
     expect(fired).toHaveLength(1);
     expect(fired[0]!.ruleId).toBe(1);
 
     off();
     await store.addRules([draft(50)]);
-    bus.emit(ticker(T0 + 2000, 100));
+    bus.emit(ticker(T0 + 2000, 40));
+    bus.emit(ticker(T0 + 2500, 100));
     expect(fired).toHaveLength(1);
   });
 
@@ -367,7 +421,8 @@ describe('engine 저장소·이벤트 버스 연동', () => {
     await store.addRules([draft(100, { kind: 'cooldown', ms: MIN }), draft(100, { kind: 'cooldown', ms: MIN })]);
     const engine = new Engine({ store });
     await engine.init();
-    engine.handle(ticker(T0, 101));
+    engine.handle(ticker(T0, 99));
+    engine.handle(ticker(T0 + 1000, 101));
     await engine.flush();
     expect((await store.loadStates()).map((s) => s.ruleId)).toEqual([1, 2]);
     await store.deleteRules(1);

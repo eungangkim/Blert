@@ -18,6 +18,11 @@ export function formatExact(n: number): string {
   return n.toLocaleString('en-US', { maximumFractionDigits: 8 });
 }
 
+/** 입력한 퍼센트를 그대로 보여준다 (기준값 등). 음수는 유니코드 마이너스(−). */
+export function formatPctExact(n: number): string {
+  return `${n < 0 ? '−' : ''}${formatExact(Math.abs(n))}%`;
+}
+
 /** 부호를 붙이면 음수는 유니코드 마이너스(−)로 표기한다 */
 export function formatPct(n: number, decimals = 1, signed = false): string {
   const body = formatNumber(Math.abs(n), decimals);

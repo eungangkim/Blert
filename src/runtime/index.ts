@@ -5,7 +5,7 @@ import { iso, systemClock, type Clock } from '../shared/clock.js';
 import { Logger, mask } from '../shared/logger.js';
 import type { Alert, Market } from '../shared/types.js';
 import { t } from '../i18n/index.js';
-import { Store } from '../store/index.js';
+import { Store, type PidFile } from '../store/index.js';
 import { Engine } from '../engine/index.js';
 import { BinanceFeed, planSubscriptions, retryDelayMs, type FeedOptions, type StreamPlan } from '../binance/index.js';
 import type { Notifier } from '../notify/index.js';
@@ -16,6 +16,8 @@ const LOG = 'runtime';
 const MARKETS: Market[] = ['spot', 'futures'];
 /** B10: 내부 오류로 감시 코어를 다시 시작하다가 이만큼 연속되면 종료한다 */
 export const MAX_CONSECUTIVE_FAILURES = 3;
+/** 생존 신호가 이만큼 끊기면 잠금 파일의 주인이 멈춘 것으로 본다 (프로세스 번호 재사용 대비) */
+export const HEARTBEAT_STALE_MS = 60_000;
 
 export interface Timing {
   /** 시작할 때 모든 연결이 열리기를 기다리는 시간. 넘으면 연결 불가로 보고 종료 코드 3 */
@@ -26,6 +28,8 @@ export interface Timing {
   silenceMs: number;
   /** 이만큼 오류 없이 돌았으면 '연속' 실패 횟수를 0으로 되돌린다 */
   healthyMs: number;
+  /** 잠금 파일(blert.pid)의 생존 신호 갱신 간격 */
+  heartbeatMs: number;
 }
 
 export const DEFAULT_TIMING: Timing = {
@@ -34,6 +38,7 @@ export const DEFAULT_TIMING: Timing = {
   sleepThresholdMs: SLEEP_THRESHOLD_MS,
   silenceMs: 30_000,
   healthyMs: 60_000,
+  heartbeatMs: 15_000,
 };
 
 export interface RuntimeIo {
@@ -82,6 +87,12 @@ export class Runtime {
   private plan: StreamPlan[] = [];
   private seen = new Set<string>();
   private silenceTimer?: ReturnType<typeof setTimeout>;
+  private heartbeatTimer?: ReturnType<typeof setTimeout>;
+  private lockHeld = false;
+  /** 이전 실행이 정상 종료하지 못했다면 그 기록 */
+  private previousRun?: PidFile;
+  /** 시작할 때 연결하지 못해 아직 감시하지 못하는 시장 */
+  private degraded = new Set<Market>();
   private stopping = false;
   private restarting = false;
   private consecutive = 0;
@@ -120,18 +131,30 @@ export class Runtime {
     }
   }
 
-  /** B9 시작: 설정 로드 → 스키마 확인·마이그레이션 → 스트림 연결 → 감시 시작 알림 */
+  /** B9 시작: 설정 로드 → 스키마 확인·마이그레이션 → 중복 실행 확인 → 스트림 연결 → 감시 시작 알림 */
   async start(): Promise<StartResult> {
-    const [rules] = await Promise.all([this.store.loadRules(), this.store.loadConfig(), this.store.loadStates()]);
+    const [rules, config] = await Promise.all([this.store.loadRules(), this.store.loadConfig(), this.store.loadStates()]);
+    if (!config.disclaimerAccepted) throw new BlertError('err.runNeedInit');
     const enabled = rules.filter((r) => r.enabled);
     if (enabled.length === 0) throw new BlertError('err.runNoRules');
 
+    const lock = await this.store.acquireRunLock({ pid: process.pid, now: this.clock.now(), staleMs: HEARTBEAT_STALE_MS });
+    if (!lock.ok) throw new BlertError('err.runAlready', { pid: lock.holder.pid });
+    this.lockHeld = true;
+    this.previousRun = lock.previous;
+    this.armHeartbeat();
+
     this.logger.info(LOG, `starting with ${enabled.length} rules`);
     this.o.io.out(t('run.connecting'));
-    await this.build();
+    try {
+      await this.build();
+    } catch (e) {
+      await this.releaseLock();
+      throw e;
+    }
 
     const failed = await this.waitOpen();
-    if (failed.length > 0) {
+    if (failed.length > 0 && failed.length >= this.neededMarkets().length) {
       this.logger.error(LOG, `could not connect: ${failed.join(', ')}`);
       return { ok: false, failedMarkets: failed };
     }
@@ -147,6 +170,9 @@ export class Runtime {
     };
     this.notifier.announce(alert);
     this.o.io.out(t('run.started'));
+    // 일부 시장만 연결된 채로 시작하면 감시하지 못하는 규칙을 반드시 알린다 (NFR-REL-02). 연결은 계속 재시도한다.
+    for (const market of failed as Market[]) this.reportDegraded(market, count(market));
+    this.reportUncleanExit();
     this.silenceTimer = setTimeout(() => this.reportSilence(), this.timing.silenceMs);
     return { ok: true };
   }
@@ -158,6 +184,7 @@ export class Runtime {
     clearTimeout(this.silenceTimer);
     await this.teardown();
     await this.notifier.flush();
+    await this.releaseLock(); // PID 파일 삭제 (B9)
     this.logger.info(LOG, `stopped (exit ${code})`);
     if (announce) this.o.io.out(t('run.stopped'));
     this.finish(code);
@@ -171,6 +198,8 @@ export class Runtime {
     this.bus.on('conn.status', (e) => {
       this.logger.info(LOG, `connection ${e.stream}: ${e.state} (attempt ${e.attempt})`);
       if (e.state === 'open') this.o.io.out(t('run.connOpen', { stream: e.stream }));
+      const market = e.stream.split('#')[0] as Market;
+      if (e.state === 'open' && this.degraded.delete(market)) this.reportRecovered(market);
       if (e.state === 'retrying') {
         this.o.io.out(t('run.connRetry', { stream: e.stream, attempt: e.attempt, seconds: retryDelayMs(e.attempt) / 1000 }));
       }
@@ -225,8 +254,12 @@ export class Runtime {
   }
 
   /** 필요한 시장의 연결이 모두 열리기를 기다린다. 열리지 못한 시장 이름을 돌려준다(전부 열렸으면 빈 배열). */
+  private neededMarkets(): Market[] {
+    return MARKETS.filter((m) => this.plan.some((p) => p.market === m));
+  }
+
   private waitOpen(): Promise<string[]> {
-    const needed = MARKETS.filter((m) => this.plan.some((p) => p.market === m));
+    const needed = this.neededMarkets();
     const notOpen = () =>
       needed.filter((m) => {
         const conns = (this.feed?.status ?? []).filter((s) => s.stream === m || s.stream.startsWith(`${m}#`));
@@ -246,6 +279,53 @@ export class Runtime {
         resolve(notOpen());
       }, this.timing.startupTimeoutMs);
     });
+  }
+
+  // ---- 실행 잠금·생존 신호 (blert.pid) ----
+
+  private armHeartbeat(): void {
+    const tick = () => {
+      this.store.touchRunLock(process.pid, this.clock.now()).catch((e) => this.logger.error(LOG, `heartbeat failed: ${String(e)}`));
+      this.heartbeatTimer = setTimeout(tick, this.timing.heartbeatMs);
+    };
+    this.heartbeatTimer = setTimeout(tick, this.timing.heartbeatMs);
+  }
+
+  private async releaseLock(): Promise<void> {
+    clearTimeout(this.heartbeatTimer);
+    if (!this.lockHeld) return;
+    this.lockHeld = false;
+    await this.store.releaseRunLock(process.pid).catch((e) => this.logger.error(LOG, `release lock failed: ${String(e)}`));
+  }
+
+  /** 이전 실행이 정상 종료하지 못했으면, 마지막 생존 신호부터 지금까지를 감시 중단 구간으로 알린다 (NFR-REL-02) */
+  private reportUncleanExit(): void {
+    const prev = this.previousRun;
+    if (!prev || Number.isNaN(Date.parse(prev.heartbeatAt))) return;
+    const to = this.clock.now();
+    this.logger.warn(LOG, `previous run (pid ${prev.pid}) did not exit cleanly, last seen ${prev.heartbeatAt}`);
+    this.bus.emit({ type: 'conn.gap', ts: iso(to), from: prev.heartbeatAt, to: iso(to), reason: 'exit' });
+  }
+
+  // ---- 일부 시장 연결 실패 ----
+
+  private reportDegraded(market: Market, ruleCount: number): void {
+    this.degraded.add(market);
+    this.logger.warn(LOG, `${market} not connected, ${ruleCount} rules are not monitored yet`);
+    this.o.io.out(t('run.partial', { market: t(`market.${market}`), count: ruleCount }));
+    this.notifier.announce({
+      ruleId: 0,
+      kind: 'warn',
+      titleKey: 'alert.partial.title',
+      params: { market, count: ruleCount },
+      firedAt: iso(this.clock.now()),
+    });
+  }
+
+  private reportRecovered(market: Market): void {
+    this.logger.info(LOG, `${market} connection recovered`);
+    this.o.io.out(t('run.partialRecovered', { market: t(`market.${market}`) }));
+    this.notifier.announce({ ruleId: 0, kind: 'account', sound: 'off', titleKey: 'alert.recovered.title', params: { market }, firedAt: iso(this.clock.now()) });
   }
 
   // ---- 절전 복귀 (FR-RUN-02, NFR-REL-02) ----

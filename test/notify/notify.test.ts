@@ -78,9 +78,9 @@ describe('notify 메시지 형식 (B7)', () => {
   };
 
   it('가격 돌파·이탈 문구', () => {
-    const up = fired([rule({ type: 'price', direction: 'above', price: 70000 }, { kind: 'once' })], ticker(T0, 70_012));
+    const up = fired([rule({ type: 'price', direction: 'above', price: 70000 }, { kind: 'once' })], ticker(T0, 69_000), ticker(T0 + 1000, 70_012));
     expect(render(up[0]!)).toEqual({ title: 'BTC 70,000 돌파', body: '현재 70,012 USDT · 현물' });
-    const down = fired([rule({ type: 'price', direction: 'below', price: 65000 }, { kind: 'once' })], ticker(T0, 64_980));
+    const down = fired([rule({ type: 'price', direction: 'below', price: 65000 }, { kind: 'once' })], ticker(T0, 66_000), ticker(T0 + 1000, 64_980));
     expect(render(down[0]!)).toEqual({ title: 'BTC 65,000 이탈', body: '현재 64,980 USDT · 현물' });
   });
 
@@ -90,17 +90,19 @@ describe('notify 메시지 형식 (B7)', () => {
       ticker(T0, 3412, 'spot', 'ETHUSDT'),
       ticker(T0 + 3_600_000, 3235, 'spot', 'ETHUSDT'),
     );
-    expect(render(change[0]!)).toEqual({ title: 'ETH 1h \u22125.2%', body: '3,412 → 3,235 USDT · 현물' });
+    expect(render(change[0]!)).toEqual({ title: 'ETH 1시간 \u22125.2%', body: '3,412 → 3,235 USDT · 현물' });
 
     const MIN = 60_000;
     const vol = fired(
       [rule({ type: 'volume', multiple: 3, shortMs: 5 * MIN, longMs: 60 * MIN }, DEFAULT_REPEAT.volume, { symbol: 'SOLUSDT' })],
       ...Array.from({ length: 60 }, (_, i) => kline(T0 + i * MIN, i >= 55 ? 4000 : 1000, { symbol: 'SOLUSDT', now: T0 + 59 * MIN + 30_000 })),
     );
-    expect(render(vol[0]!)).toEqual({ title: 'SOL 거래량 3.2배 급증', body: '5m 거래대금 20.0K USDT (1h 평균 6.3K)' });
+    expect(render(vol[0]!)).toEqual({ title: 'SOL 거래량 3.2배 급증', body: '5분 거래대금 20.0K USDT (1시간 평균 6.3K)' });
 
-    const fund = fired([rule({ type: 'funding', direction: 'above', pct: 0.05 }, DEFAULT_REPEAT.funding)], funding(T0, 0.061));
-    expect(render(fund[0]!)).toEqual({ title: 'BTC 선물 펀딩비 0.061%', body: '기준 0.050% 초과' });
+    const fund = fired([rule({ type: 'funding', direction: 'above', pct: 0.05 }, DEFAULT_REPEAT.funding)], funding(T0, 0.04), funding(T0 + 3000, 0.061));
+    expect(render(fund[0]!)).toEqual({ title: 'BTC 선물 펀딩비 0.061%', body: '기준 0.05% 초과' });
+    const low = fired([rule({ type: 'funding', direction: 'below', pct: -0.05 }, DEFAULT_REPEAT.funding)], funding(T0, -0.04), funding(T0 + 3000, -0.062));
+    expect(render(low[0]!)).toEqual({ title: 'BTC 선물 펀딩비 \u22120.062%', body: '기준 \u22120.05% 미만' });
   });
 });
 
@@ -302,6 +304,22 @@ describe('notify 이벤트 연동', () => {
       title: '감시 중단 구간 있음',
       body: `${clockHM(from)} ~ ${clockHM(T0)} 동안 감시하지 못함`,
     });
+  });
+});
+
+describe('notify 중단 구간 표기', () => {
+  it('구간이 날짜를 넘으면 날짜를 함께 보여주고, 이전 실행 비정상 종료(exit)도 같은 알림으로 보여준다', async () => {
+    const { notifier, desktop } = setup();
+    const bus = new EventBus();
+    notifier.attach(bus);
+    const from = T0 - 30 * 3_600_000;
+    bus.emit({ type: 'conn.gap', ts: iso(T0), from: iso(from), to: iso(T0), reason: 'exit' });
+    await tick(0);
+    const f = new Date(from);
+    const t = new Date(T0);
+    expect(render(desktop.all[0]!).body).toBe(
+      `${f.getMonth() + 1}/${f.getDate()} ${clockHM(from)} ~ ${t.getMonth() + 1}/${t.getDate()} ${clockHM(T0)} 동안 감시하지 못함`,
+    );
   });
 });
 

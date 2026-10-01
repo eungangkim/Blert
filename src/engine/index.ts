@@ -22,7 +22,8 @@ const keyOf = (market: string, symbol: string) => `${market}:${symbol}`;
 /**
  * 시장 이벤트를 규칙과 대조해 발동 여부를 결정한다 (B4).
  * 시간 판단은 모두 이벤트의 ts를 기준으로 한다. 시계는 이벤트를 만드는 쪽(binance)이 주입받는다.
- * 조건이 충족된 상태로 처음 평가되면 곧바로 발동한다 (수준 트리거).
+ * 가격·펀딩비는 '넘는 순간'(미충족 → 충족)에만 발동하고, 시작할 때 이미 충족 중이면 알리지 않는다.
+ * 변동률·거래량은 현재 수준을 보고 반복 정책(쿨다운 등)으로 소음을 막는다.
  */
 export class Engine {
   private byKey = new Map<string, Rule[]>();
@@ -33,6 +34,8 @@ export class Engine {
   /** 심볼별 가격 표본 간격: 그 심볼에서 가장 짧은 변동률 창 기준 */
   private priceBucket = new Map<string, number>();
   private volumeRetention = new Map<string, number>();
+  /** 교차 판정용: 규칙별 직전 충족 여부. 처음 관측하면 기준만 기록하고 발동하지 않는다. */
+  private wasSatisfied = new Map<number, boolean>();
   private pending: Promise<unknown> = Promise.resolve();
   private emit: (alert: Alert) => void = () => {};
 
@@ -56,6 +59,8 @@ export class Engine {
     for (const r of rules) next.set(r.id, this.states.get(r.id) ?? saved.get(r.id) ?? { ruleId: r.id, armed: true });
     const pruned = [...this.states.keys()].some((id) => !next.has(id)) || states.some((s) => !next.has(s.ruleId));
     this.states = next;
+    for (const r of rules) if (!r.enabled) this.wasSatisfied.delete(r.id); // 다시 켜지면 새로 기준을 잡는다
+    for (const id of [...this.wasSatisfied.keys()]) if (!next.has(id)) this.wasSatisfied.delete(id);
 
     this.byKey.clear();
     this.priceRetention.clear();
@@ -196,7 +201,13 @@ export class Engine {
       st.armed = true;
       this.persist();
     }
-    if (!satisfied(m)) return;
+    const sat = satisfied(m);
+    if (m.edge) {
+      const prev = this.wasSatisfied.get(rule.id);
+      this.wasSatisfied.set(rule.id, sat);
+      if (prev !== false) return; // 첫 관측(기준 기록)이거나 이미 충족 중이면 '넘는 순간'이 아니다
+    }
+    if (!sat) return;
     if (policy.kind === 'cooldown' && st.lastFiredAt && ts - Date.parse(st.lastFiredAt) < policy.ms) return;
     if (policy.kind === 'hysteresis' && !st.armed) return;
 

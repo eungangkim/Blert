@@ -7,7 +7,7 @@ import { platformGroup } from '../shared/platform.js';
 import { t } from '../i18n/index.js';
 import { ConsoleAdapter, DesktopAdapter, SoundAdapter, type NotifyAdapter } from './adapters.js';
 import type { RunFn } from './proc.js';
-import { clockHM, render } from './render.js';
+import { gapTimes, render } from './render.js';
 
 export type { NotifyAdapter } from './adapters.js';
 
@@ -168,7 +168,7 @@ export class Notifier {
       const minutes = Math.max(1, Math.round((to - from) / 60_000));
       return { ruleId: 0, kind: 'warn', titleKey: 'alert.conn.down.title', params: { minutes, attempt }, firedAt: e.to };
     }
-    return { ruleId: 0, kind: 'warn', titleKey: 'alert.gap.title', params: { from: clockHM(from), to: clockHM(to) }, firedAt: e.to };
+    return { ruleId: 0, kind: 'warn', titleKey: 'alert.gap.title', params: gapTimes(from, to), firedAt: e.to };
   }
 
   private track(p: Promise<unknown>): void {

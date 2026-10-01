@@ -9,9 +9,24 @@ export function clockHM(ms: number): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** 중단 구간 표기. 같은 날이면 HH:MM, 날짜를 넘으면 M/D HH:MM으로 날짜를 함께 보여준다 */
+export function gapTimes(fromMs: number, toMs: number): { from: string; to: string } {
+  if (new Date(fromMs).toDateString() === new Date(toMs).toDateString()) return { from: clockHM(fromMs), to: clockHM(toMs) };
+  const withDate = (ms: number) => `${new Date(ms).getMonth() + 1}/${new Date(ms).getDate()} ${clockHM(ms)}`;
+  return { from: withDate(fromMs), to: withDate(toMs) };
+}
+
 export function clockHMS(ms: number): string {
   const d = new Date(ms);
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+const UNITS = [['d', 86_400_000], ['h', 3_600_000], ['m', 60_000], ['s', 1000]] as const;
+
+/** 정확히 나누어떨어지는 가장 큰 단위로 한글 표기한다. 예: 3600000 → 1시간, 300000 → 5분 */
+export function durationText(ms: number): string {
+  for (const [unit, size] of UNITS) if (ms % size === 0) return `${ms / size}${t(`unit.${unit}`)}`;
+  return `${Math.round(ms / 1000)}${t('unit.s')}`;
 }
 
 /**
@@ -20,6 +35,10 @@ export function clockHMS(ms: number): string {
  */
 export function render(alert: Alert): { title: string; body: string } {
   const params = { ...alert.params };
+  // 이름이 Ms로 끝나는 숫자 파라미터(windowMs 등)는 기간(ms)이다. 한글 단위로 바꿔 같은 이름에서 Ms를 뺀 키로 쓴다.
+  for (const [k, v] of Object.entries(alert.params)) {
+    if (k.endsWith('Ms') && typeof v === 'number') params[k.slice(0, -2)] = durationText(v);
+  }
   if (params.market === 'spot' || params.market === 'futures') params.market = t(`market.${params.market}`);
   const bodyKey = alert.titleKey.replace(/\.title$/, '.body');
   const body = bodyKey === alert.titleKey ? '' : t(bodyKey, params);
