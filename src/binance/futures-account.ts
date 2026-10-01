@@ -44,6 +44,7 @@ export interface FuturesAccountFeedOptions {
   allowedHosts?: readonly string[];
   wsFactory?: WsFactory;
   fetchFn?: typeof fetch;
+  sleep?: (ms: number) => Promise<void>;
   timing?: Partial<FuturesAccountTiming>;
 }
 
@@ -290,7 +291,7 @@ export class FuturesAccountFeed {
   // ---- 포지션 조회 (D-46) ----
 
   private rest(): AccountRestOptions {
-    return { base: this.endpoints.rest, allowedHosts: this.hosts, fetchFn: this.o.fetchFn, now: () => this.clock.now(), logger: this.o.logger };
+    return { base: this.endpoints.rest, allowedHosts: this.hosts, fetchFn: this.o.fetchFn, sleep: this.o.sleep, now: () => this.clock.now(), logger: this.o.logger };
   }
 
   private scheduleRefresh(session: Session): void {
