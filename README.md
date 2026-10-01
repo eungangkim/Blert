@@ -54,6 +54,24 @@ blert run                               # 감시 시작 (종료: Ctrl+C)
 
 모든 명령에 `--help`가 있고, 고급 옵션은 `blert --help --advanced`에서 볼 수 있습니다.
 
+## 계정 알림 (읽기 전용 키)
+
+내 주문 체결과 잔고 변동도 알려 받을 수 있습니다. **읽기 전용 Ed25519 키**만 쓸 수 있고, 키는 파일이 아니라 **OS 키체인**에만 저장됩니다.
+
+```bash
+blert key add                     # API 키와 개인키(PEM) 파일 경로를 입력 → 키체인에 저장
+blert add fill all                # 모든 체결 알림
+blert add balance USDT 5%         # USDT 잔고가 마지막 알림 대비 5% 이상 변하면 알림 (쿨다운 10분)
+blert key check                   # 저장된 키의 권한을 다시 확인
+blert key remove                  # 키체인에서 키 삭제
+```
+
+- **읽기 권한만** 켠 키를 만드세요. 거래·출금·마진·선물 권한이 하나라도 켜져 있으면 저장도 실행도 거부합니다.
+- 바이낸스 API 관리에서 **허용 IP 제한**을 켜는 것을 권장합니다. 없으면 실행할 때마다 경고합니다.
+- HMAC 키와 RSA 키는 쓸 수 없습니다. Ed25519 키쌍을 만들어 공개키를 바이낸스에 등록하세요: `openssl genpkey -algorithm ED25519 -out private_key.pem`
+- 키 문제(권한 변경 등)가 생기면 **계정 알림만 멈추고 공개 알림은 계속**됩니다. 멈춘 이유는 알림으로 알려 줍니다.
+- OS 키체인이 없는 환경(일부 Linux)에서는 계정 알림을 쓸 수 없고 공개 알림만 동작합니다. 키를 파일이나 환경변수로 대신 저장하지 않습니다.
+
 ## 저장 위치
 
 Windows `%APPDATA%\blert\`, macOS·Linux `~/.config/blert/` — `config.json`, `rules.json`, `state.json`, `logs/`.
