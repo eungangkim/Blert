@@ -20,6 +20,14 @@
     "prepack": "npm run build"
   },
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eungangkim/Blert.git"
+  },
+  "homepage": "https://github.com/eungangkim/Blert#readme",
+  "bugs": {
+    "url": "https://github.com/eungangkim/Blert/issues"
+  },
   "devDependencies": {
     "@types/node": "24.19.0",
     "tsx": "4.23.15",
