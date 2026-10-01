@@ -44,6 +44,8 @@ describe('account REST 조회 (GET /api/v3/account, /api/v3/myTrades)', () => {
     expect(await fetchTrades('ZZZUSDT', NOW, creds, opts)).toEqual({ ok: false, reason: 'invalid-symbol' });
     const rejected = await fetchBalances(creds, { ...opts, fetchFn: vi.fn(async () => new Response(JSON.stringify({ code: -2015, msg: 'x' }), { status: 401 })) as unknown as typeof fetch });
     expect(rejected).toEqual({ ok: false, reason: 'rejected' });
+    const unknown = await fetchBalances(creds, { ...opts, fetchFn: vi.fn(async () => new Response(JSON.stringify({ code: -2008, msg: 'Invalid Api-Key ID.' }), { status: 400 })) as unknown as typeof fetch });
+    expect(unknown).toEqual({ ok: false, reason: 'rejected' });
   });
 
   it('429/418이 반복되면 Retry-After만큼 3번 쉬고 포기한다 (기본 60초, 최대 5분)', async () => {

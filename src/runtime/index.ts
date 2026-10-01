@@ -96,6 +96,8 @@ export class Runtime {
   /** 키 문제로 계정 기능을 멈췄는가. 다시 시작할 때까지 재시도하지 않는다 */
   private accountStopped = false;
   private ipWarned = false;
+  /** 계정 기능이 멈춘 이유를 이미 사용자에게 알렸는가 (중복 알림 방지) */
+  private accountAnnounced = false;
   /** 감시 시작 알림을 낸 뒤에야 계정 연결을 시작한다 (B9 시작 순서) */
   private started = false;
   private offEngine?: () => void;
@@ -338,6 +340,9 @@ export class Runtime {
       onFatal: (detail) => {
         this.accountStopped = true;
         this.logger.warn(LOG, `account features stopped: ${detail}`);
+        // 키 확인 단계에서 이미 알렸다면 되풀이하지 않는다. 로그인 거부·반복 끊김 같은 연결 단계의 실패는 여기서 알린다.
+        if (!this.accountAnnounced) this.announceAccount('alert.account.rejected', { detail });
+        this.accountAnnounced = true;
       },
     });
     this.accountFeed.start();
@@ -362,14 +367,19 @@ export class Runtime {
         this.logger.warn(LOG, `key check could not be completed: ${prepared.detail}`);
         return { ok: false, retry: true, detail: prepared.detail }; // 일시적: 백오프로 다시 확인한다
       case 'denied':
+        this.accountAnnounced = true;
         this.bus.emit({ type: 'key.denied', ts: iso(this.clock.now()), reason: prepared.reason, fields: prepared.fields });
         return stop(`permissions: ${prepared.fields.join(', ')}`);
       case 'no-keychain':
+        this.accountAnnounced = true;
         this.bus.emit({ type: 'key.denied', ts: iso(this.clock.now()), reason: 'no-keychain' });
         return stop('no keychain');
       case 'rejected':
         // 저장된 키가 Ed25519가 아니면 쓸 수 없는 형식이고, 그 밖에는 바이낸스가 키·서명·허용 IP를 거부한 것이다
-        if (/Ed25519/.test(prepared.detail)) this.bus.emit({ type: 'key.denied', ts: iso(this.clock.now()), reason: 'hmac' });
+        if (/Ed25519/.test(prepared.detail)) {
+          this.accountAnnounced = true;
+          this.bus.emit({ type: 'key.denied', ts: iso(this.clock.now()), reason: 'hmac' });
+        }
         else this.announceAccount('alert.account.rejected', { detail: prepared.detail });
         return stop(prepared.detail);
       case 'none':
@@ -379,6 +389,7 @@ export class Runtime {
   }
 
   private announceAccount(titleKey: string, params: Record<string, string | number>): void {
+    if (titleKey !== 'alert.account.ipwarn') this.accountAnnounced = true;
     this.notifier.announce({ ruleId: 0, kind: 'warn', titleKey: `${titleKey}.title`, params, firedAt: iso(this.clock.now()) });
   }
 

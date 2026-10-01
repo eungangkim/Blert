@@ -105,6 +105,8 @@ describe('security 권한 조회 요청 (REST 서명)', () => {
     expect(await run(jsonResponse({ code: -2015, msg: 'Invalid API-key, IP, or permissions for action.' }, 401))).toMatchObject({ kind: 'rejected', detail: expect.stringContaining('-2015') });
     expect(await run(jsonResponse({ code: -1022, msg: 'Signature for this request is not valid.' }, 400))).toMatchObject({ kind: 'rejected' });
     expect(await run(jsonResponse({ code: -2014, msg: 'API-key format invalid.' }, 401))).toMatchObject({ kind: 'rejected' });
+    // 실제 바이낸스가 존재하지 않는 키에 돌려준 응답 (HTTP 400)
+    expect(await run(jsonResponse({ code: -2008, msg: 'Invalid Api-Key ID.' }, 400))).toMatchObject({ kind: 'rejected', detail: expect.stringContaining('-2008') });
     expect(await run(jsonResponse({ code: -1021, msg: 'Timestamp outside of the recvWindow.' }, 400))).toMatchObject({ kind: 'unreachable' });
     expect(await run(jsonResponse({ code: -1003, msg: 'Too many requests' }, 429))).toMatchObject({ kind: 'unreachable' });
     expect(await run(jsonResponse({}, 503))).toMatchObject({ kind: 'unreachable' });

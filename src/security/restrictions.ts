@@ -7,6 +7,16 @@ export const ALLOWED_ENABLED = new Set(['enableReading', 'enableFixReadOnly', 'i
 /** 출금 권한. 이 밖에 켜진 권한은 거래 계열로 안내한다 (마진, 선물, 옵션, 이체, FIX 거래 등) */
 const WITHDRAW_FIELDS = new Set(['enableWithdrawals']);
 
+/**
+ * 바이낸스가 '이 키로는 안 된다'고 답한 경우. 다시 시도해도 같다.
+ * -2008 존재하지 않는 API 키(실서버 응답 확인: "Invalid Api-Key ID."), -2014 API 키 형식 오류,
+ * -2015 키·허용 IP·권한 문제, -1022 서명 불일치(키쌍이 다름), 401/403 인증 실패.
+ * 시계 오차(-1021), 요청 한도(429/418), 서버 오류는 일시적일 수 있어 여기에 넣지 않는다.
+ */
+export function isKeyRejection(status: number | undefined, code: number | undefined): boolean {
+  return code === -2008 || code === -2014 || code === -2015 || code === -1022 || status === 401 || status === 403;
+}
+
 export interface Denial {
   /** withdraw: 출금, trade: 거래·마진·선물·이체 등 그 밖의 쓰기 권한, noRead: 읽기 권한 없음 */
   code: 'withdraw' | 'trade' | 'noRead';
@@ -87,7 +97,6 @@ export async function fetchRestrictions(creds: Credentials, o: FetchRestrictions
   const code = typeof (body as { code?: unknown })?.code === 'number' ? (body as { code: number }).code : undefined;
   const msg = typeof (body as { msg?: unknown })?.msg === 'string' ? (body as { msg: string }).msg : '';
   const detail = `HTTP ${res.status}${code !== undefined ? ` code ${code}` : ''}${msg ? ` ${msg}` : ''}`.slice(0, 200);
-  // -2014/-2015: API 키 형식·허용 IP·권한 문제, -1022: 서명 불일치(키쌍이 다름), 401/403: 인증 실패
-  if (code === -2014 || code === -2015 || code === -1022 || res.status === 401 || res.status === 403) return { kind: 'rejected', detail };
+  if (isKeyRejection(res.status, code)) return { kind: 'rejected', detail };
   return { kind: 'unreachable', detail }; // -1021(시계 오차), 429/418(요청 한도), 5xx 등
 }

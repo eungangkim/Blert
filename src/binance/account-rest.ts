@@ -1,4 +1,4 @@
-import type { Credentials } from '../security/index.js';
+import { isKeyRejection, type Credentials } from '../security/index.js';
 import type { Logger } from '../shared/logger.js';
 import { isAllowedUrl } from '../shared/network.js';
 
@@ -84,9 +84,7 @@ async function signedGet(path: string, params: Record<string, string | number>, 
     if (res.ok) return { ok: true, body };
     const code = typeof (body as { code?: unknown })?.code === 'number' ? (body as { code: number }).code : undefined;
     if (code === -1121) return { ok: false, reason: 'invalid-symbol', status: res.status, code };
-    if (code === -2014 || code === -2015 || code === -1022 || res.status === 401 || res.status === 403) {
-      return { ok: false, reason: 'rejected', status: res.status, code };
-    }
+    if (isKeyRejection(res.status, code)) return { ok: false, reason: 'rejected', status: res.status, code };
     o.logger?.warn(LOG, `${path} HTTP ${res.status}${code !== undefined ? ` code ${code}` : ''}`);
     return { ok: false, reason: 'http', status: res.status, code };
   }

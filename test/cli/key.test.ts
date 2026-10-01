@@ -192,6 +192,9 @@ describe('cli 테스트넷 모드 (결정 1A, 개발자 전용)', () => {
     expect(test.out.join('\n')).toContain('권한 검사를 건너뛰었습니다');
     expect(test.fetchCalls()).toBe(0);
     expect(test.keychain.stored).toBeDefined();
+    expect(await test.run('key check')).toBe(0);
+    expect(test.out.at(-1)).toContain('권한(읽기 전용 여부)은 확인하지 않았습니다');
+    expect(test.out.join('\n')).not.toContain('읽기 전용 키입니다'); // 확인하지 않은 것을 확인했다고 말하지 않는다
 
     const main = await withAnswers([FAKE_API_KEY, pemPath]);
     await main.run('key add');

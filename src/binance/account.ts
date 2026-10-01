@@ -4,7 +4,7 @@ import { iso, systemClock, type Clock } from '../shared/clock.js';
 import type { Logger } from '../shared/logger.js';
 import { allowedHosts as hostsFor, isAllowedUrl, type NetworkMode } from '../shared/network.js';
 import { STABLE_QUOTES } from '../shared/symbol.js';
-import type { Credentials } from '../security/index.js';
+import { isKeyRejection, type Credentials } from '../security/index.js';
 import { ACCOUNT_ENDPOINTS, type AccountEndpoints } from './endpoints.js';
 import { OUTAGE_WARN_MS, ROTATE_AFTER_MS, retryDelayMs, type ConnState, type WebSocketLike, type WsFactory } from './connection.js';
 import { fetchBalances, fetchTrades, type AccountRestOptions, type Trade } from './account-rest.js';
@@ -14,6 +14,11 @@ export const ACCOUNT_STREAM = 'account';
 const SEEN_TRADES_MAX = 5000;
 /** 보충 조회는 끊기기 직전 생존 시각보다 이만큼 앞에서 시작한다 (경계의 체결을 놓치지 않으려는 여유, 중복은 체결 ID로 제거) */
 const BACKFILL_MARGIN_MS = 60_000;
+/**
+ * 로그인 요청 직후 연결이 이 횟수만큼 연속으로 끊기면 키를 쓸 수 없는 것으로 보고 멈춘다.
+ * 실제 바이낸스(2026-10-02 확인)는 존재하지 않는 키로 session.logon을 보내면 오류 응답 없이 연결을 끊는다.
+ */
+const MAX_HANDSHAKE_DROPS = 3;
 
 /** 연결(재연결)을 시도하기 전에 키를 쓸 수 있는지 확인한 결과 (FR-KEY-04) */
 export type AuthorizeResult =
@@ -68,6 +73,9 @@ interface Session {
   socket: WebSocketLike;
   creds: Credentials;
   dead: boolean;
+  opened: boolean;
+  /** session.logon에 대한 응답(성공이든 거부든)을 받았는가 */
+  logonAnswered: boolean;
   pending: Map<string, { resolve: (r: ApiResponse) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>;
 }
 
@@ -89,6 +97,8 @@ export class AccountFeed {
   private attempt = 0;
   private stopped = false;
   private everReady = false;
+  /** 로그인 응답을 받기 전에 연결이 끊긴 연속 횟수 */
+  private handshakeDrops = 0;
   private connectSeq = 0;
   private reqSeq = 0;
   private session?: Session;
@@ -173,18 +183,25 @@ export class AccountFeed {
       this.o.logger?.error(LOG, `cannot open socket: ${e instanceof Error ? e.message : String(e)}`);
       return this.lost('open failed');
     }
-    const session: Session = { socket, creds: auth.credentials, dead: false, pending: new Map() };
+    const session: Session = { socket, creds: auth.credentials, dead: false, opened: false, logonAnswered: false, pending: new Map() };
     this.session = session;
     socket.onopen = () => {
-      if (!session.dead) void this.handshake(session);
+      if (session.dead) return;
+      session.opened = true;
+      void this.handshake(session);
     };
     socket.onmessage = (ev) => {
       if (!session.dead) this.onMessage(session, ev.data);
     };
     const onEnd = () => {
       if (session.dead) return;
+      const droppedDuringLogon = session.opened && !session.logonAnswered;
       this.retire(session);
-      if (session === this.session) this.lost('connection closed');
+      if (session !== this.session) return;
+      if (droppedDuringLogon && ++this.handshakeDrops >= MAX_HANDSHAKE_DROPS) {
+        return this.fatal(`connection dropped during session.logon ${MAX_HANDSHAKE_DROPS} times (the API key may be invalid or this IP is not allowed)`);
+      }
+      this.lost('connection closed');
     };
     socket.onclose = onEnd;
     socket.onerror = onEnd;
@@ -198,6 +215,7 @@ export class AccountFeed {
       const signature = session.creds.sign(`apiKey=${session.creds.apiKey}&timestamp=${timestamp}`);
       const logon = await this.request(session, 'session.logon', { apiKey: session.creds.apiKey, timestamp, signature });
       if (session.dead) return;
+      session.logonAnswered = true;
       if (logon.status !== 200) return this.logonFailed(session, logon);
 
       const sub = await this.request(session, 'userDataStream.subscribe');
@@ -221,7 +239,7 @@ export class AccountFeed {
     const detail = `logon rejected (status ${res.status ?? '?'}${code !== undefined ? ` code ${code}` : ''}${res.error?.msg ? `: ${res.error.msg}` : ''})`;
     this.retire(session);
     // 키·서명·허용 IP 문제는 다시 시도해도 같다. 그 밖(점검, 요청 한도 등)은 일시적일 수 있다.
-    if (res.status === 401 || res.status === 403 || code === -2014 || code === -2015 || code === -1022) return this.fatal(detail);
+    if (isKeyRejection(res.status, code)) return this.fatal(detail);
     this.o.logger?.warn(LOG, detail);
     this.lost('logon failed');
   }
@@ -229,6 +247,7 @@ export class AccountFeed {
   private onReady(session: Session): void {
     const reconnect = this.everReady;
     this.everReady = true;
+    this.handshakeDrops = 0;
     const outageStart = this.outageStart;
     this.outageStart = undefined;
     this.clear('outageWarn');

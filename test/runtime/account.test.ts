@@ -251,23 +251,38 @@ describe('runtime 키 문제와 공개 알림의 독립 (FR-KEY-02, FR-KEY-04, D
     const h = await setup([fillAll]);
     h.sapi.last = jsonResponse({ code: -2015, msg: 'Invalid API-key, IP, or permissions for action.' }, 401);
     const done = h.rt.runForeground();
-    await waitFor(() => h.has('계정 알림 중단 — 바이낸스가 키를 거부'));
+    await waitFor(() => h.has('계정 알림 중단 — 키를 쓸 수 없음'));
     expect(h.has('-2015')).toBe(true);
     expect(h.api.sockets).toHaveLength(0);
     h.proc.emit('SIGINT');
     await done;
   });
 
-  it('로그인(session.logon)이 거부되어도 계정 기능만 멈추고 안내한다', async () => {
+  it('로그인(session.logon)이 거부되면 사용자에게 알리고 계정 기능만 멈춘다', async () => {
     const h = await setup([fillAll, priceBtc]);
     h.api.logonResult = { status: 401, code: -2015 };
     const done = h.rt.runForeground();
-    await waitFor(() => h.api.logons.length > 0);
-    await sleep(100);
+    await waitFor(() => h.has('계정 알림 중단 — 키를 쓸 수 없음')); // 로그에만 남기지 않고 화면·알림으로 알린다
+    expect(h.has('logon rejected')).toBe(true);
+    expect(h.out.filter((l) => l.includes('계정 알림 중단')).length).toBe(1);
     expect(await h.logText()).toContain('account features stopped');
     h.net.push('btcusdt@miniTicker', miniTicker('BTCUSDT', 69_000));
     h.net.push('btcusdt@miniTicker', miniTicker('BTCUSDT', 70_010));
     await waitFor(() => h.has('BTC 70,000 돌파')); // 공개 알림은 유지
+    h.proc.emit('SIGINT');
+    await done;
+  });
+
+  it('로그인 직후 연결이 반복해서 끊기면(쓸 수 없는 키) 알리고 멈춘다. 공개 알림은 유지한다', async () => {
+    const h = await setup([fillAll, priceBtc], { network: 'testnet' }); // 테스트넷은 /sapi 검사가 없어 이 경로가 실제로 쓰인다
+    h.api.dropOnLogon = true;
+    const done = h.rt.runForeground();
+    await waitFor(() => h.has('계정 알림 중단 — 키를 쓸 수 없음'), 8000);
+    expect(h.has('dropped during session.logon 3 times')).toBe(true);
+    expect(h.api.sockets).toHaveLength(3);
+    h.net.push('btcusdt@miniTicker', miniTicker('BTCUSDT', 69_000));
+    h.net.push('btcusdt@miniTicker', miniTicker('BTCUSDT', 70_010));
+    await waitFor(() => h.has('BTC 70,000 돌파'));
     h.proc.emit('SIGINT');
     await done;
   });

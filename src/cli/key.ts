@@ -71,9 +71,12 @@ export const keyCommand: Command = {
     }
 
     const result = await keys.check();
-    io.out(t('key.checkOk'));
-    if (!result.checked) io.out(t('key.testnetSkipped'));
-    else if (result.ipRestricted === false) io.out(t('key.ipWarning'));
+    // 테스트넷은 권한을 확인하지 않았으므로 '읽기 전용'이라고 말하지 않는다
+    if (!result.checked) io.out(t('key.checkSkipped'));
+    else {
+      io.out(t('key.checkOk'));
+      if (result.ipRestricted === false) io.out(t('key.ipWarning'));
+    }
     return 0;
   },
 };

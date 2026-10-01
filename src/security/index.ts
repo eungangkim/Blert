@@ -7,7 +7,7 @@ import { fetchRestrictions, type Denial, type RestrictionsResult } from './restr
 
 export { createNapiKeychain, DEFAULT_KEY_REF, type Keychain } from './keychain.js';
 export { parseEd25519PrivateKey, signEd25519, credentialsFrom, type Credentials, type StoredKey } from './credentials.js';
-export { evaluateRestrictions, fetchRestrictions, ALLOWED_ENABLED, type Denial, type RestrictionsResult } from './restrictions.js';
+export { evaluateRestrictions, fetchRestrictions, isKeyRejection, ALLOWED_ENABLED, type Denial, type RestrictionsResult } from './restrictions.js';
 
 /** runtime이 시작할 때와 재연결할 때마다 부르는 키 준비 결과 (FR-KEY-04) */
 export type PrepareResult =

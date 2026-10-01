@@ -259,6 +259,12 @@ describe('account 권한 재검사 (FR-KEY-04)', () => {
     expect(rejected.feed.status.state).toBe('closed');
     expect(rejected.onFatal).toHaveBeenCalledWith(expect.stringContaining('-2015'));
 
+    const unknownKey = make();
+    unknownKey.server.logonResult = { status: 400, code: -2008 }; // 존재하지 않는 API 키
+    await start(unknownKey);
+    expect(unknownKey.feed.status.state).toBe('closed');
+    expect(unknownKey.onFatal).toHaveBeenCalledWith(expect.stringContaining('-2008'));
+
     const busy = make();
     busy.server.logonResult = { status: 503, code: -1003 };
     await start(busy);
@@ -267,6 +273,32 @@ describe('account 권한 재검사 (FR-KEY-04)', () => {
     busy.server.logonResult = 'ok';
     await tick(1000);
     expect(busy.feed.status.state).toBe('open');
+  });
+
+  it('로그인 요청 직후 응답 없이 연결이 3번 연속 끊기면(실제 바이낸스가 쓸 수 없는 키에 하는 동작) 키를 쓸 수 없는 것으로 보고 멈춘다', async () => {
+    const h = make();
+    h.server.dropOnLogon = true;
+    await start(h);
+    expect(h.feed.status.state).toBe('retrying');
+    await tick(1000); // 2번째 시도
+    expect(h.onFatal).not.toHaveBeenCalled();
+    await tick(2000); // 3번째 시도
+    expect(h.feed.status.state).toBe('closed');
+    expect(h.onFatal).toHaveBeenCalledWith(expect.stringContaining('dropped during session.logon 3 times'));
+    expect(h.server.sockets).toHaveLength(3);
+    await tick(10 * 60_000);
+    expect(h.server.sockets).toHaveLength(3); // 더 이상 시도하지 않는다
+  });
+
+  it('로그인이 한 번 성공하면 끊김 횟수를 센 것을 잊는다 (정상 연결의 끊김은 계속 재시도)', async () => {
+    const h = make();
+    await start(h);
+    for (let i = 0; i < 5; i++) {
+      h.server.dropAll();
+      await tick(60_000);
+    }
+    expect(h.feed.status.state).toBe('open');
+    expect(h.onFatal).not.toHaveBeenCalled();
   });
 
   it('구독에 실패하면 다시 시도한다', async () => {

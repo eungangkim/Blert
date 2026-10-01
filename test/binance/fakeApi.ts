@@ -59,6 +59,8 @@ export class FakeApiServer {
   subscribeStatus = 200;
   /** false면 session.status에 응답하지 않는다 (반쯤 끊긴 연결) */
   respondStatus = true;
+  /** true면 session.logon을 받자마자 응답 없이 연결을 끊는다 (실제 바이낸스가 존재하지 않는 키에 하는 동작) */
+  dropOnLogon = false;
   readonly logons: { apiKey: unknown; timestamp: unknown; signature: unknown; keys: string[]; valid: boolean }[] = [];
   private publicKey: KeyObject;
 
@@ -96,6 +98,7 @@ export class FakeApiServer {
       const valid =
         typeof p.signature === 'string' && p.apiKey === this.apiKey && verify(null, Buffer.from(payload, 'utf8'), this.publicKey, Buffer.from(p.signature, 'base64'));
       this.logons.push({ apiKey: p.apiKey, timestamp: p.timestamp, signature: p.signature, keys: Object.keys(p).sort(), valid });
+      if (this.dropOnLogon) return queueMicrotask(() => socket.serverDrop());
       if (this.logonResult !== 'ok') return reply(this.logonResult.status, undefined, { code: this.logonResult.code, msg: 'rejected' });
       if (!valid) return reply(400, undefined, { code: -1022, msg: 'Signature for this request is not valid.' });
       socket.loggedIn = true;
