@@ -2,7 +2,7 @@ import { BlertError } from '../shared/errors.js';
 import type { Rule } from '../shared/types.js';
 import { t } from '../i18n/index.js';
 import { suggest } from './suggest.js';
-import { describeCondition, describeRepeat, renderTable } from './format.js';
+import { describeCondition, describeRepeat, renderTable, symbolLabel } from './format.js';
 import type { Command, Ctx } from './types.js';
 
 type Status = 'active' | 'paused' | 'fired';
@@ -40,7 +40,7 @@ export const listCommand: Command = {
         t(`list.status.${statusOf(r)}`),
         t(`type.${r.type}`),
         t(`market.${r.market}`),
-        r.name ? t('list.symbolWithName', { symbol: r.symbol, name: r.name }) : r.symbol,
+        r.name ? t('list.symbolWithName', { symbol: symbolLabel(r) || '-', name: r.name }) : symbolLabel(r) || '-',
         describeCondition(r.condition),
         describeRepeat(r.repeat),
         r.source === 'manual' ? t('list.source.manual') : r.source,

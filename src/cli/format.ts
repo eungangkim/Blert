@@ -36,13 +36,19 @@ export function describeRepeat(r: RepeatPolicy): string {
   }
 }
 
+/** 규칙의 대상 이름. 계정 알림의 '*'는 전체, 잔고 알림은 자산이 조건에 있어 비워 둔다 */
+export function symbolLabel(r: Pick<Rule, 'symbol' | 'condition'>): string {
+  if (r.condition.type === 'balance') return '';
+  return r.symbol === '*' ? t('asset.all') : r.symbol;
+}
+
 export function describeRule(r: Pick<Rule, 'market' | 'symbol' | 'condition' | 'repeat'>): string {
   return t('rule.summary', {
     market: t(`market.${r.market}`),
-    symbol: r.symbol,
+    symbol: symbolLabel(r),
     condition: describeCondition(r.condition),
     repeat: describeRepeat(r.repeat),
-  });
+  }).replace(/ {2,}/g, ' ');
 }
 
 /** 터미널에서 한글·전각 문자는 2칸을 차지한다 */

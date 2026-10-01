@@ -1,6 +1,8 @@
 import type { Store } from '../store/index.js';
 import type { PresetService } from '../presets/index.js';
 import type { SoundKind } from '../shared/types.js';
+import type { KeyService } from '../security/index.js';
+import type { NetworkMode } from '../shared/network.js';
 
 export type { PresetService };
 
@@ -32,6 +34,10 @@ export interface Deps {
   presets: PresetService;
   notifier: NotifierPort;
   runner: Runner;
+  /** 키 등록·삭제·확인 (security가 구현, v0.2) */
+  keys: KeyService;
+  /** 개발자 전용 BLERT_NETWORK=testnet 이면 testnet */
+  network: NetworkMode;
   io: Io;
 }
 

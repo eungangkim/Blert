@@ -7,7 +7,7 @@ import { parseDirection, parseMode, parseMultiple, parsePercent, parsePrice, par
 import type { Command, Ctx } from './types.js';
 import { describeRule } from './format.js';
 
-const TYPES = ['price', 'change', 'volume', 'funding'] as const;
+const TYPES = ['price', 'change', 'volume', 'funding', 'fill', 'balance'] as const;
 type AddType = (typeof TYPES)[number];
 const SOUNDS = ['up', 'down', 'account', 'warn', 'off'] as const;
 
@@ -18,6 +18,13 @@ function usageError(type: AddType): BlertError {
 }
 
 /** `blert add <유형> ...`의 위치 인자와 옵션을 규칙 초안으로 바꾼다. */
+/** `all` 또는 자산 이름(BTC, USDT …). 자산은 대문자로 정규화한다. */
+function parseAsset(raw: string): string {
+  if (raw.toLowerCase() === 'all') return '*';
+  if (!/^[A-Za-z0-9]{2,10}$/.test(raw)) throw new BlertError('err.asset', { value: raw });
+  return raw.toUpperCase();
+}
+
 export function buildRule(rest: string[], values: Map<string, string>): RuleDraft {
   const typeRaw = rest[0];
   if (!typeRaw) throw new BlertError('err.addMissingType', { types: TYPES.join(', ') });
@@ -34,6 +41,8 @@ export function buildRule(rest: string[], values: Map<string, string>): RuleDraf
   };
 
   let draft: Pick<RuleDraft, 'type' | 'market' | 'symbol' | 'condition'>;
+  // 계정 알림은 반복 정책이 정해져 있다 (체결은 이벤트마다, 잔고는 쿨다운 10분 — B4, D-27)
+  if ((type === 'fill' || type === 'balance') && values.has('mode')) throw new BlertError('err.modeFixed', { type });
   switch (type) {
     case 'price': {
       need(a.length === 3);
@@ -63,6 +72,22 @@ export function buildRule(rest: string[], values: Map<string, string>): RuleDraf
       draft = { type, market, symbol, condition: { type, multiple, shortMs, longMs } };
       break;
     }
+    case 'fill': {
+      need(a.length === 1);
+      if (a[0]!.toLowerCase() === 'all') {
+        draft = { type, market: 'spot', symbol: '*', condition: { type } };
+      } else {
+        const { market, symbol } = parseSymbol(a[0]!);
+        if (market !== 'spot') throw new BlertError('err.fillFutures', { value: a[0]! }); // 선물 체결은 v0.3
+        draft = { type, market, symbol, condition: { type } };
+      }
+      break;
+    }
+    case 'balance': {
+      need(a.length === 2);
+      draft = { type, market: 'spot', symbol: '*', condition: { type, asset: parseAsset(a[0]!), pct: parsePercent(a[1]!) } };
+      break;
+    }
     case 'funding': {
       need(a.length === 3);
       const { market, symbol } = parseSymbol(a[0]!);
@@ -89,13 +114,17 @@ export function buildRule(rest: string[], values: Map<string, string>): RuleDraf
 
 export const addCommand: Command = {
   name: 'add',
-  usageKeys: ['usage.add.price', 'usage.add.change', 'usage.add.volume', 'usage.add.funding'],
+  usageKeys: ['usage.add.price', 'usage.add.change', 'usage.add.volume', 'usage.add.funding', 'usage.add.fill', 'usage.add.balance'],
   allowedOptions: ['mode', 'sound', 'name'],
   advancedKeys: ['help.advanced.mode', 'help.advanced.sound', 'help.advanced.name'],
   async run({ rest, args, deps }: Ctx) {
     const draft = buildRule(rest, args.values);
     const [rule] = await deps.store.addRules([draft]);
     deps.io.out(t('add.done', { id: rule!.id, summary: describeRule(rule!) }));
+    // 계정 알림은 API 키가 있어야 동작한다. 키가 없으면 등록 방법을 안내한다.
+    if ((rule!.type === 'fill' || rule!.type === 'balance') && (await deps.store.loadConfig()).keyRef === undefined) {
+      deps.io.out(t('add.needKey'));
+    }
     deps.io.out(t('add.next'));
     return 0;
   },
