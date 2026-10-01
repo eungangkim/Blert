@@ -17,6 +17,7 @@ interface Payload {
   c?: unknown;
   q?: unknown;
   r?: unknown;
+  p?: unknown;
   T?: unknown;
   k?: { t?: unknown; c?: unknown; q?: unknown; x?: unknown };
 }
@@ -50,7 +51,9 @@ export function parseStreamMessage(market: Market, stream: string, data: unknown
     const rate = num(d.r);
     const next = num(d.T);
     if (!Number.isFinite(rate) || !Number.isFinite(next)) return null;
-    return { type: 'market.funding', ts, symbol, rate, nextFundingTime: iso(next) };
+    // p: 마크 가격 (markPriceUpdate). 청산가 거리 판정에 쓴다 (D-46). 형식이 이상하면 마크 가격 없이 내보낸다.
+    const markPrice = num(d.p);
+    return { type: 'market.funding', ts, symbol, rate, nextFundingTime: iso(next), ...(Number.isFinite(markPrice) && markPrice > 0 ? { markPrice } : {}) };
   }
   return null;
 }

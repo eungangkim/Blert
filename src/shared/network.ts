@@ -8,7 +8,8 @@ import { BlertError } from './errors.js';
 export type NetworkMode = 'mainnet' | 'testnet';
 
 export const MAINNET_HOSTS = ['stream.binance.com', 'fstream.binance.com', 'api.binance.com', 'fapi.binance.com', 'ws-api.binance.com'];
-export const TESTNET_HOSTS = ['testnet.binance.vision', 'ws-api.testnet.binance.vision'];
+// 선물 데모(테스트넷) 주소는 2026-10 공식 문서 기준 (D-48): https://developers.binance.com/docs/derivatives/usds-margined-futures/general-info
+export const TESTNET_HOSTS = ['testnet.binance.vision', 'ws-api.testnet.binance.vision', 'demo-fapi.binance.com', 'demo-fstream.binance.com'];
 
 export function allowedHosts(mode: NetworkMode): readonly string[] {
   return mode === 'testnet' ? [...MAINNET_HOSTS, ...TESTNET_HOSTS] : MAINNET_HOSTS;

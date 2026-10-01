@@ -65,7 +65,7 @@ export const keyCommand: Command = {
         delete c.keyRef;
       });
       io.out(t(removed ? 'key.removed' : 'key.noneToRemove'));
-      const accountRules = (await store.loadRules()).filter((r) => r.type === 'fill' || r.type === 'balance').length;
+      const accountRules = (await store.loadRules()).filter((r) => r.type === 'fill' || r.type === 'balance' || r.type === 'liq').length;
       if (removed && accountRules > 0) io.out(t('key.accountRulesNote', { count: accountRules }));
       return 0;
     }

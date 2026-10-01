@@ -5,7 +5,7 @@ import type { Logger } from '../shared/logger.js';
 import { iso } from '../shared/clock.js';
 import type { Store } from '../store/index.js';
 import { MinuteVolumes, PriceHistory, MAX_STALE_MS, bucketFor } from './history.js';
-import { measureBalance, measureChange, measureFill, measureFunding, measurePrice, measureVolume, rearmed, satisfied, toAlert, type Measurement } from './measure.js';
+import { measureBalance, measureChange, measureFill, measureFunding, measureLiq, measurePrice, measureVolume, rearmed, satisfied, toAlert, type Measurement } from './measure.js';
 
 const MINUTE = 60_000;
 const LOG = 'engine';
@@ -40,6 +40,10 @@ export class Engine {
   private accountRules: Rule[] = [];
   /** 잔고 알림의 기준: 규칙별·자산별 마지막 알림 시점(또는 처음 본) 잔고 */
   private balanceBase = new Map<number, Map<string, number>>();
+  /** 선물 포지션(청산가 판정용): 심볼 → 방향 → 크기·청산가. account.position이 갱신한다 */
+  private positions = new Map<string, Map<'LONG' | 'SHORT', { size: number; liqPrice: number }>>();
+  /** 심볼별 마지막 마크 가격 (마크 가격 스트림 또는 포지션 조회) */
+  private marks = new Map<string, number>();
   private pending: Promise<unknown> = Promise.resolve();
   private emit: (alert: Alert) => void = () => {};
 
@@ -98,6 +102,7 @@ export class Engine {
       bus.on('market.funding', (e) => void this.handle(e)),
       bus.on('account.fill', (e) => void this.handle(e)),
       bus.on('account.balance', (e) => void this.handle(e)),
+      bus.on('account.position', (e) => void this.handle(e)),
       bus.on('rules.changed', () => this.reload()),
     ];
     return () => {
@@ -142,6 +147,8 @@ export class Engine {
         return this.onFill(e);
       case 'account.balance':
         return this.onBalance(e);
+      case 'account.position':
+        return this.onPosition(e);
       default:
         return [];
     }
@@ -201,7 +208,35 @@ export class Engine {
       const m = measureFunding(rule, e.rate * 100);
       if (m) this.apply(rule, m, ts, alerts);
     }
+    // 마크 가격 스트림은 청산가 거리를 계속 다시 계산하는 데 쓴다 (D-46)
+    if (e.markPrice !== undefined && e.markPrice > 0) {
+      this.marks.set(e.symbol, e.markPrice);
+      this.checkLiq(e.symbol, ts, alerts);
+    }
     return alerts;
+  }
+
+  /** 선물 포지션 갱신: 방향별 크기·청산가를 기억하고 청산가 근접 규칙을 다시 판정한다 */
+  private onPosition(e: EventOf<'account.position'>): Alert[] {
+    const ts = Date.parse(e.ts);
+    const sides = this.positions.get(e.symbol) ?? this.positions.set(e.symbol, new Map()).get(e.symbol)!;
+    sides.set(e.side, { size: e.size, liqPrice: e.liqPrice });
+    if (e.markPrice > 0) this.marks.set(e.symbol, e.markPrice);
+    const alerts: Alert[] = [];
+    this.checkLiq(e.symbol, ts, alerts);
+    return alerts;
+  }
+
+  private checkLiq(symbol: string, ts: number, out: Alert[]): void {
+    const rules = this.active(keyOf('futures', symbol)).filter((r) => r.condition.type === 'liq');
+    if (rules.length === 0) return;
+    const sides = this.positions.get(symbol);
+    if (!sides) return; // 포지션을 아직 한 번도 받지 못했다
+    const views = [...sides].map(([side, p]) => ({ side, size: p.size, liqPrice: p.liqPrice }));
+    for (const rule of rules) {
+      const m = measureLiq(rule, views, this.marks.get(symbol));
+      if (m) this.apply(rule, m, ts, out);
+    }
   }
 
   /** 주문 체결: 이벤트마다 알린다. 규칙은 심볼 하나 또는 전체('*')다. */
@@ -210,6 +245,7 @@ export class Engine {
     const alerts: Alert[] = [];
     for (const rule of this.accountRules) {
       if (rule.condition.type !== 'fill' || !rule.enabled) continue;
+      if (rule.market !== e.market) continue; // 현물과 선물은 심볼 이름이 같아도 다른 체결이다
       if (rule.symbol !== '*' && rule.symbol !== e.symbol) continue;
       const m = measureFill(rule, e);
       if (m) this.apply(rule, m, ts, alerts);

@@ -12,6 +12,7 @@ export const DEFAULT_REPEAT: Record<RuleType, RepeatPolicy> = {
   funding: { kind: 'hysteresis', widthPct: 20 },
   fill: { kind: 'each' },
   balance: { kind: 'cooldown', ms: 10 * MINUTE }, // D-27
+  liq: { kind: 'cooldown', ms: 5 * MINUTE }, // B4: 청산가 근접 쿨다운 5분
 };
 
 /** 쿨다운 허용 범위 (B4: 1분 ~ 24시간) */

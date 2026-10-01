@@ -227,9 +227,9 @@ describe('cli add fill / balance (FR-ACC-01~02)', () => {
     expect(rules[1]!.condition).toEqual({ type: 'balance', asset: '*', pct: 10 });
   });
 
-  it('입력 오류: 선물 체결, 잘못된 자산·퍼센트, 인자 개수, 반복 정책 변경은 종료 코드 1이다', async () => {
-    expect(await h.run('add fill f:BTC')).toBe(1);
-    expect(h.err[0]).toContain('v0.3');
+  it('입력 오류: 선물 체결 전체, 잘못된 자산·퍼센트, 인자 개수, 반복 정책 변경은 종료 코드 1이다', async () => {
+    expect(await h.run('add fill f:all')).toBe(1);
+    expect(h.err[0]).toContain('심볼을 지정');
     expect(await h.run('add balance U$DT 5%')).toBe(1);
     expect(await h.run('add balance USDT 5')).toBe(1);
     expect(await h.run('add balance USDT')).toBe(1);

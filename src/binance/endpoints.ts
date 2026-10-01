@@ -69,3 +69,29 @@ export const ACCOUNT_ENDPOINTS: Record<NetworkMode, AccountEndpoints> = {
   mainnet: { wsApi: 'wss://ws-api.binance.com:443/ws-api/v3', rest: 'https://api.binance.com' },
   testnet: { wsApi: 'wss://ws-api.testnet.binance.vision/ws-api/v3', rest: 'https://testnet.binance.vision' },
 };
+
+/*
+ * 선물 계정 연결 (v0.3, D-45). 문서 (2026-10 확인):
+ * - listenKey: https://developers.binance.com/docs/derivatives/usds-margined-futures/user-data-streams/Start-User-Data-Stream
+ *   · POST/PUT/DELETE /fapi/v1/listenKey (가중치 1), 60분 안에 유지하지 않으면 만료
+ * - 연결 주소: https://developers.binance.com/docs/derivatives/usds-margined-futures/websocket-market-streams/Important-WebSocket-Change-Notice
+ *   · wss://fstream.binance.com/private/ws?listenKey=<listenKey>&events=ORDER_TRADE_UPDATE/ACCOUNT_UPDATE
+ *   · 선물 데모(테스트넷) 주소는 https://developers.binance.com/docs/derivatives/usds-margined-futures/general-info 에서
+ *     REST https://demo-fapi.binance.com, WebSocket wss://demo-fstream.binance.com 으로 확인했다.
+ *     데모의 /private 경로는 문서에서 확인하지 못해 수동 테스트로 확인해야 한다.
+ * - 이벤트 필드 (공식 SDK 모델로 확인): https://github.com/binance/binance-connector-python/tree/master/clients/derivatives_trading_usds_futures
+ *   · ORDER_TRADE_UPDATE.o: s 심볼, S 방향, x 실행 유형(TRADE가 체결), l 마지막 체결 수량, L 마지막 체결 가격, i 주문 ID, t 체결 ID, T 체결 시각
+ *   · ACCOUNT_UPDATE.a: m 사유, B 잔고, P 포지션(s, pa 수량, ep 진입가, ps 방향). 청산가는 이벤트에 없어 positionRisk로 다시 읽는다 (D-46)
+ *   · listenKeyExpired: listenKey가 만료됐다는 이벤트
+ * - 포지션 조회: GET /fapi/v3/positionRisk (서명 필요), 필드는 account-rest.ts 주석 참고
+ */
+export interface FuturesAccountEndpoints {
+  /** 사용자 데이터 WebSocket 주소 (listenKey는 쿼리로 붙인다) */
+  wsPrivate: string;
+  rest: string;
+}
+
+export const FUTURES_ACCOUNT_ENDPOINTS: Record<NetworkMode, FuturesAccountEndpoints> = {
+  mainnet: { wsPrivate: 'wss://fstream.binance.com/private/ws', rest: 'https://fapi.binance.com' },
+  testnet: { wsPrivate: 'wss://demo-fstream.binance.com/private/ws', rest: 'https://demo-fapi.binance.com' },
+};

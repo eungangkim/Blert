@@ -20,6 +20,8 @@ export function describeCondition(c: Condition): string {
       return t('cond.fill');
     case 'balance':
       return t('cond.balance', { asset: c.asset === '*' ? t('asset.all') : c.asset, pct: c.pct });
+    case 'liq':
+      return t('cond.liq', { pct: c.pct });
   }
 }
 

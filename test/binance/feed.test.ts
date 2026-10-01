@@ -109,7 +109,7 @@ describe('binance 스트림 수신 (FR-ALERT-01~04 데이터)', () => {
     ]);
     expect(of('market.kline')[0]).toMatchObject({ market: 'spot', openTime: iso(NOW_MIN), close: 70010, quoteVolume: 5000.25, closed: false });
     expect(of('market.funding')).toEqual([
-      { type: 'market.funding', ts: iso(T0), symbol: 'BTCUSDT', rate: 0.0006, nextFundingTime: iso(NOW_MIN + 8 * HOUR) },
+      { type: 'market.funding', ts: iso(T0), symbol: 'BTCUSDT', rate: 0.0006, nextFundingTime: iso(NOW_MIN + 8 * HOUR), markPrice: 1 }, // p: 마크 가격 (v0.3)
     ]);
   });
 

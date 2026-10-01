@@ -126,7 +126,39 @@ export function toAlert(rule: Rule, m: Measurement, firedAtIso: string): Alert {
   };
 }
 
-/** 체결 알림 (FR-ACC-01). 이벤트마다 발동한다. */
+/** 선물 포지션 한 방향의 청산 판정에 필요한 값 (account.position에서 온다) */
+export interface PositionView {
+  side: 'LONG' | 'SHORT';
+  size: number;
+  liqPrice: number;
+}
+
+/**
+ * 청산가 근접 알림 (FR-ALERT-05, D-46~D-49). 거리 = |마크 − 청산가| ÷ 마크 × 100 (%).
+ * 크기가 0이거나 청산가가 0인 방향(포지션 없음, 청산 위험 없음)은 제외하고, 롱·숏이 함께 있으면 가까운 쪽을 쓴다.
+ * 수준 기반이라 edge를 쓰지 않는다: 시작할 때 이미 기준 안이면 바로 알리고, 반복은 쿨다운이 막는다 (D-47).
+ */
+export function measureLiq(rule: Rule, positions: PositionView[], mark: number | undefined): Measurement | null {
+  const c = rule.condition;
+  if (c.type !== 'liq' || mark === undefined || !(mark > 0)) return null;
+  let nearest: { side: 'LONG' | 'SHORT'; liq: number; distance: number } | undefined;
+  for (const p of positions) {
+    if (!(p.size > 0) || !(p.liqPrice > 0)) continue;
+    const distance = (Math.abs(mark - p.liqPrice) / mark) * 100;
+    if (!nearest || distance < nearest.distance) nearest = { side: p.side, liq: p.liqPrice, distance };
+  }
+  if (!nearest) return null;
+  return {
+    value: nearest.distance,
+    threshold: c.pct,
+    direction: 'below',
+    kind: 'warn',
+    titleKey: 'alert.liq.title',
+    params: { ...base(rule), side: nearest.side, distance: formatPct(nearest.distance, 1), mark: formatPrice(mark), liq: formatPrice(nearest.liq), threshold: formatPctExact(c.pct) },
+  };
+}
+
+/** 체결 알림 (FR-ACC-01, FR-ACC-03). 이벤트마다 발동한다. 선물 체결은 제목에 '선물'을 붙인다. */
 export function measureFill(rule: Rule, e: EventOf<'account.fill'>): Measurement | null {
   if (rule.condition.type !== 'fill') return null;
   const { base: coin, quote } = splitSymbol(e.symbol);
@@ -135,7 +167,7 @@ export function measureFill(rule: Rule, e: EventOf<'account.fill'>): Measurement
     threshold: 1,
     direction: 'above',
     kind: 'account',
-    titleKey: 'alert.fill.title',
+    titleKey: e.market === 'futures' ? 'alert.fill.futures.title' : 'alert.fill.title',
     params: { coin, quote, side: e.side, qty: formatExact(e.qty), price: formatExact(e.price) }, // side는 notify가 매수·매도로 번역
   };
 }

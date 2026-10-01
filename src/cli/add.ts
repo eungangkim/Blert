@@ -7,7 +7,7 @@ import { parseDirection, parseMode, parseMultiple, parsePercent, parsePrice, par
 import type { Command, Ctx } from './types.js';
 import { describeRule } from './format.js';
 
-const TYPES = ['price', 'change', 'volume', 'funding', 'fill', 'balance'] as const;
+const TYPES = ['price', 'change', 'volume', 'funding', 'fill', 'balance', 'liq'] as const;
 type AddType = (typeof TYPES)[number];
 const SOUNDS = ['up', 'down', 'account', 'warn', 'off'] as const;
 
@@ -76,11 +76,21 @@ export function buildRule(rest: string[], values: Map<string, string>): RuleDraf
       need(a.length === 1);
       if (a[0]!.toLowerCase() === 'all') {
         draft = { type, market: 'spot', symbol: '*', condition: { type } };
+      } else if (a[0]!.toLowerCase() === 'f:all') {
+        throw new BlertError('err.fillFuturesAll', { value: a[0]! }); // 선물은 심볼을 지정해야 한다 (D-52)
       } else {
         const { market, symbol } = parseSymbol(a[0]!);
-        if (market !== 'spot') throw new BlertError('err.fillFutures', { value: a[0]! }); // 선물 체결은 v0.3
         draft = { type, market, symbol, condition: { type } };
       }
+      break;
+    }
+    case 'liq': {
+      need(a.length === 2);
+      const { market, symbol } = parseSymbol(a[0]!);
+      if (market !== 'futures') throw new BlertError('err.liqFutures', { value: a[0]! });
+      const pct = parsePercent(a[1]!);
+      if (pct >= 100) throw new BlertError('err.liqRange', { value: a[1]! });
+      draft = { type, market, symbol, condition: { type, pct } };
       break;
     }
     case 'balance': {
@@ -114,7 +124,7 @@ export function buildRule(rest: string[], values: Map<string, string>): RuleDraf
 
 export const addCommand: Command = {
   name: 'add',
-  usageKeys: ['usage.add.price', 'usage.add.change', 'usage.add.volume', 'usage.add.funding', 'usage.add.fill', 'usage.add.balance'],
+  usageKeys: ['usage.add.price', 'usage.add.change', 'usage.add.volume', 'usage.add.funding', 'usage.add.fill', 'usage.add.balance', 'usage.add.liq'],
   allowedOptions: ['mode', 'sound', 'name'],
   advancedKeys: ['help.advanced.mode', 'help.advanced.sound', 'help.advanced.name'],
   async run({ rest, args, deps }: Ctx) {
@@ -122,7 +132,7 @@ export const addCommand: Command = {
     const [rule] = await deps.store.addRules([draft]);
     deps.io.out(t('add.done', { id: rule!.id, summary: describeRule(rule!) }));
     // 계정 알림은 API 키가 있어야 동작한다. 키가 없으면 등록 방법을 안내한다.
-    if ((rule!.type === 'fill' || rule!.type === 'balance') && (await deps.store.loadConfig()).keyRef === undefined) {
+    if ((rule!.type === 'fill' || rule!.type === 'balance' || rule!.type === 'liq') && (await deps.store.loadConfig()).keyRef === undefined) {
       deps.io.out(t('add.needKey'));
     }
     deps.io.out(t('add.next'));

@@ -27,7 +27,9 @@ export type Condition =
   | { type: 'funding'; direction: 'above' | 'below'; pct: number }
   // v0.2 계정 알림. 규칙의 symbol은 체결은 심볼 또는 '*'(전체), 잔고는 '*'이고 자산은 asset에 둔다.
   | { type: 'fill' }
-  | { type: 'balance'; asset: string; pct: number };
+  | { type: 'balance'; asset: string; pct: number }
+  // v0.3 청산가 근접: 마크 가격과 청산가의 거리(%)가 pct 이하 (D-46). 선물 전용, symbol은 지정한 심볼 (D-51)
+  | { type: 'liq'; pct: number };
 
 export type RuleType = Condition['type'];
 

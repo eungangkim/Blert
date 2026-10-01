@@ -64,10 +64,10 @@ describe('구조 규칙 (B2 모듈 경계)', () => {
       for (const m of readFileSync(f, 'utf8').matchAll(/\b(?:https?|wss?):\/\/([a-z0-9.-]+)/gi)) hosts.add(m[1]!.toLowerCase());
     }
     // 주석의 문서 링크(developers.binance.com, kenney.nl 등)는 코드가 아니라 참고용이다
-    const runtimeHosts = [...hosts].filter((h) => !/^(developers\.binance\.com|kenney\.nl|creativecommons\.org)$/.test(h));
-    // 실서버 5곳과, BLERT_NETWORK=testnet 에서만 허용되는 테스트넷 2곳 (shared/network.ts)
+    const runtimeHosts = [...hosts].filter((h) => !/^(developers\.binance\.com|kenney\.nl|creativecommons\.org|github\.com)$/.test(h));
+    // 실서버 5곳과, BLERT_NETWORK=testnet 에서만 허용되는 테스트넷 4곳(현물 2, 선물 데모 2, shared/network.ts)
     expect(runtimeHosts.sort()).toEqual([
-      'api.binance.com', 'fapi.binance.com', 'fstream.binance.com', 'stream.binance.com', 'testnet.binance.vision', 'ws-api.binance.com', 'ws-api.testnet.binance.vision',
+      'api.binance.com', 'demo-fapi.binance.com', 'demo-fstream.binance.com', 'fapi.binance.com', 'fstream.binance.com', 'stream.binance.com', 'testnet.binance.vision', 'ws-api.binance.com', 'ws-api.testnet.binance.vision',
     ]);
   });
 });

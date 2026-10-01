@@ -41,9 +41,19 @@ export const kline = (openTs: number, quoteVolume: number, opts: { close?: numbe
 });
 
 /** 펀딩비 rate는 % 단위로 받아 바이낸스 응답처럼 비율(÷100)로 바꾼다 */
-export const funding = (ts: number, ratePct: number, symbol = 'BTCUSDT'): BlertEvent => ({
-  type: 'market.funding', ts: iso(ts), symbol, rate: ratePct / 100, nextFundingTime: iso(ts + 8 * HOUR),
+export const funding = (ts: number, ratePct: number, symbol = 'BTCUSDT', markPrice?: number): BlertEvent => ({
+  type: 'market.funding', ts: iso(ts), symbol, rate: ratePct / 100, nextFundingTime: iso(ts + 8 * HOUR), ...(markPrice === undefined ? {} : { markPrice }),
 });
+
+/** 선물 포지션 한 방향 (v0.3). size 0이면 그 방향 포지션이 없다 */
+export const position = (
+  ts: number,
+  side: 'LONG' | 'SHORT',
+  size: number,
+  liqPrice: number,
+  markPrice: number,
+  symbol = 'BTCUSDT',
+): BlertEvent => ({ type: 'account.position', ts: iso(ts), symbol, side, size, entryPrice: size > 0 ? markPrice : 0, liqPrice, markPrice });
 
 export const fill = (
   ts: number,
@@ -51,9 +61,9 @@ export const fill = (
   side: 'BUY' | 'SELL',
   qty: number,
   price: number,
-  ids: { orderId?: number; tradeId?: number } = {},
+  ids: { orderId?: number; tradeId?: number; market?: 'spot' | 'futures' } = {},
 ): BlertEvent => ({
-  type: 'account.fill', ts: iso(ts), market: 'spot', symbol, side, qty, price, orderId: ids.orderId ?? 1, tradeId: ids.tradeId ?? 1,
+  type: 'account.fill', ts: iso(ts), market: ids.market ?? 'spot', symbol, side, qty, price, orderId: ids.orderId ?? 1, tradeId: ids.tradeId ?? 1,
 });
 
 export const balance = (ts: number, asset: string, free: number, locked = 0): BlertEvent => ({

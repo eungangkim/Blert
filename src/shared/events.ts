@@ -5,10 +5,13 @@ import type { Alert, Market } from './types.js';
 export type BlertEvent =
   | { type: 'market.ticker'; ts: string; market: Market; symbol: string; price: number; quoteVolume: number }
   | { type: 'market.kline'; ts: string; market: Market; symbol: string; openTime: string; close: number; quoteVolume: number; closed: boolean }
-  | { type: 'market.funding'; ts: string; symbol: string; rate: number; nextFundingTime: string }
+  // markPrice: 마크 가격 스트림의 현재 마크 가격 (v0.3 청산가 판정용, D-46)
+  | { type: 'market.funding'; ts: string; symbol: string; rate: number; nextFundingTime: string; markPrice?: number }
   // v0.2 계정 이벤트 (바이낸스 사용자 데이터 스트림). tradeId는 재연결 후 보충 조회와의 중복 제거용이다.
-  | { type: 'account.fill'; ts: string; market: 'spot'; symbol: string; side: 'BUY' | 'SELL'; qty: number; price: number; orderId: number; tradeId: number }
+  | { type: 'account.fill'; ts: string; market: Market; symbol: string; side: 'BUY' | 'SELL'; qty: number; price: number; orderId: number; tradeId: number }
   | { type: 'account.balance'; ts: string; asset: string; free: number; locked: number }
+  // v0.3 선물 포지션 (포지션 조회 또는 계정 갱신 때마다). size는 절댓값이고 0이면 그 방향 포지션이 없다는 뜻이다 (B2).
+  | { type: 'account.position'; ts: string; symbol: string; side: 'LONG' | 'SHORT'; size: number; entryPrice: number; liqPrice: number; markPrice: number }
   // 키 때문에 계정 기능을 쓸 수 없을 때. fields는 문제가 된 권한 이름이다.
   | { type: 'key.denied'; ts: string; reason: 'trade' | 'withdraw' | 'hmac' | 'no-keychain'; fields?: string[] }
   | { type: 'rule.fired'; ts: string; alert: Alert }

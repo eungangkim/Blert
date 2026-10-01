@@ -136,3 +136,78 @@ export async function fetchTrades(
     from = last + 1;
   }
 }
+
+export interface Position {
+  symbol: string;
+  side: 'LONG' | 'SHORT';
+  /** 포지션 크기의 절댓값 */
+  size: number;
+  entryPrice: number;
+  /** 0이면 청산 위험이 없다고 보고되는 값(교차 마진 등) */
+  liqPrice: number;
+  markPrice: number;
+}
+
+/**
+ * 선물 포지션과 청산가 (GET /fapi/v3/positionRisk, 서명 필요). 문서 (2026-10 확인):
+ * https://developers.binance.com/docs/derivatives/usds-margined-futures/trade/rest-api/Position-Information-V3
+ * 응답 필드: symbol, positionSide(BOTH·LONG·SHORT), positionAmt, entryPrice, markPrice, liquidationPrice (모두 문자열).
+ * 단방향(BOTH)은 positionAmt의 부호가 방향이다. 읽기 전용 키로 조회되는 것을 실서버에서 확인했다 (D-53).
+ */
+export async function fetchPositions(creds: Credentials, o: AccountRestOptions): Promise<{ ok: true; positions: Position[] } | { ok: false; reason: RestFailure }> {
+  const r = await signedGet('/fapi/v3/positionRisk', {}, creds, o);
+  if (!r.ok) return { ok: false, reason: r.reason };
+  if (!Array.isArray(r.body)) return { ok: false, reason: 'http' };
+  const positions: Position[] = [];
+  for (const p of r.body as Record<string, unknown>[]) {
+    const amt = num(p.positionAmt);
+    const entryPrice = num(p.entryPrice);
+    const markPrice = num(p.markPrice);
+    const liqPrice = num(p.liquidationPrice);
+    if (typeof p.symbol !== 'string' || ![amt, entryPrice, markPrice, liqPrice].every(Number.isFinite)) continue;
+    const side = p.positionSide === 'LONG' ? 'LONG' : p.positionSide === 'SHORT' ? 'SHORT' : amt >= 0 ? 'LONG' : 'SHORT';
+    positions.push({ symbol: p.symbol, side, size: Math.abs(amt), entryPrice, liqPrice, markPrice });
+  }
+  return { ok: true, positions };
+}
+
+export type ListenKeyResult = { ok: true; listenKey?: string } | { ok: false; reason: RestFailure | 'expired' };
+
+/**
+ * 선물 listenKey 발급(POST)·유지(PUT)·종료(DELETE). 문서 (2026-10 확인):
+ * https://developers.binance.com/docs/derivatives/usds-margined-futures/user-data-streams/Start-User-Data-Stream
+ * 서명 없이 X-MBX-APIKEY 헤더만 쓴다. 60분 안에 유지하지 않으면 만료되고, 이미 발급된 키가 있으면 POST는 그 키를 돌려준다.
+ * listenKey는 로그에 남기지 않는다 (NFR-SEC-01). 이 값은 D-45에 따라 선물에서만 쓴다.
+ */
+export async function listenKeyRequest(method: 'POST' | 'PUT' | 'DELETE', apiKey: string, o: AccountRestOptions): Promise<ListenKeyResult> {
+  const fetchFn = o.fetchFn ?? fetch;
+  const url = `${o.base}/fapi/v1/listenKey`;
+  if (!isAllowedUrl(url, o.allowedHosts)) {
+    o.logger?.error(LOG, 'blocked request to a non-Binance host');
+    return { ok: false, reason: 'blocked' };
+  }
+  let res: Response;
+  try {
+    res = await fetchFn(url, { method, headers: { 'X-MBX-APIKEY': apiKey }, signal: AbortSignal.timeout(o.timeoutMs ?? 10_000) });
+  } catch (e) {
+    o.logger?.warn(LOG, `listenKey ${method} request failed: ${e instanceof Error ? e.name : 'error'}`);
+    return { ok: false, reason: 'network' };
+  }
+  if (res.status === 429 || res.status === 418) return { ok: false, reason: 'rate-limited' };
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    body = undefined;
+  }
+  if (res.ok) {
+    const key = (body as { listenKey?: unknown } | undefined)?.listenKey;
+    if (method === 'POST') return typeof key === 'string' && key ? { ok: true, listenKey: key } : { ok: false, reason: 'http' };
+    return { ok: true };
+  }
+  const code = typeof (body as { code?: unknown })?.code === 'number' ? (body as { code: number }).code : undefined;
+  if (code === -1125) return { ok: false, reason: 'expired' }; // This listenKey does not exist.
+  if (isKeyRejection(res.status, code)) return { ok: false, reason: 'rejected' };
+  o.logger?.warn(LOG, `listenKey ${method} HTTP ${res.status}${code !== undefined ? ` code ${code}` : ''}`);
+  return { ok: false, reason: 'http' };
+}

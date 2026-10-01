@@ -34,7 +34,7 @@ export function planSubscriptions(rules: Rule[]): StreamPlan[] {
       plan.kline = true;
       plan.backfillMs = Math.max(plan.backfillMs, c.longMs + 2 * MINUTE);
     }
-    if (c.type === 'funding') plan.funding = true;
+    if (c.type === 'funding' || c.type === 'liq') plan.funding = true; // 청산가 거리 판정은 마크 가격 스트림을 쓴다 (D-46)
   }
   return [...plans.values()];
 }
