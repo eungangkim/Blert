@@ -109,7 +109,22 @@ export async function fetchBalances(creds: Credentials, o: AccountRestOptions): 
  * startTime 이후의 체결 (GET /api/v3/myTrades, symbol 필수, weight 20, 한 번에 최대 1000건).
  * 꽉 찬 쪽이 오면 마지막 체결 시각 다음부터 이어서 받는다.
  */
-export async function fetchTrades(
+export function fetchTrades(symbol: string, startTime: number, creds: Credentials, o: AccountRestOptions) {
+  return fetchTradesAt('/api/v3/myTrades', symbol, startTime, creds, o);
+}
+
+/**
+ * 선물 체결 보충 조회 (GET /fapi/v1/userTrades, 서명 필요, symbol 필수, limit 최대 1000). 문서 (2026-10 확인):
+ * https://developers.binance.com/docs/derivatives/usds-margined-futures/trade/rest-api/Account-Trade-List
+ * 응답 필드(공식 SDK 모델): id, orderId, symbol, side(BUY·SELL), price, qty, time (모두 문자열 또는 숫자).
+ * 읽기 전용 키로 조회되는지는 실서버로 확인해야 한다 (MANUAL_CHECKS).
+ */
+export function fetchFuturesTrades(symbol: string, startTime: number, creds: Credentials, o: AccountRestOptions) {
+  return fetchTradesAt('/fapi/v1/userTrades', symbol, startTime, creds, o);
+}
+
+async function fetchTradesAt(
+  endpoint: string,
   symbol: string,
   startTime: number,
   creds: Credentials,
@@ -118,7 +133,7 @@ export async function fetchTrades(
   const trades: Trade[] = [];
   let from = Math.max(0, Math.floor(startTime));
   for (;;) {
-    const r = await signedGet('/api/v3/myTrades', { symbol, startTime: from, limit: TRADES_PAGE }, creds, o);
+    const r = await signedGet(endpoint, { symbol, startTime: from, limit: TRADES_PAGE }, creds, o);
     if (!r.ok) return trades.length ? { ok: true, trades } : { ok: false, reason: r.reason }; // 받은 데이터까지는 쓴다
     const rows = Array.isArray(r.body) ? (r.body as Record<string, unknown>[]) : [];
     let last = from;
@@ -129,7 +144,8 @@ export async function fetchTrades(
       const price = num(t.price);
       const time = num(t.time);
       if (![tradeId, orderId, qty, price, time].every(Number.isFinite)) continue;
-      trades.push({ symbol, tradeId, orderId, side: t.isBuyer === true ? 'BUY' : 'SELL', qty, price, time });
+      const buy = t.isBuyer === true || t.buyer === true || t.side === 'BUY'; // 현물 isBuyer, 선물 buyer·side
+      trades.push({ symbol, tradeId, orderId, side: buy ? 'BUY' : 'SELL', qty, price, time });
       last = Math.max(last, time);
     }
     if (rows.length < TRADES_PAGE) return { ok: true, trades };

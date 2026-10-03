@@ -245,6 +245,69 @@ describe('선물 계정 연결: 유지·재연결 (AC-40, FR-KEY-04)', () => {
   });
 });
 
+describe('선물 계정 연결: 끊긴 사이 체결 보충 (FR-CONN-02, D-44)', () => {
+  const trade = (id: number, time: number, symbol = 'BTCUSDT') => ({ symbol, id, orderId: id, side: 'BUY' as const, price: 83_000, qty: 0.01, time });
+
+  it('AC-40 끊긴 사이의 선물 체결이 재연결 직후 알림으로 오고, 이미 받은 체결은 다시 오지 않는다', async () => {
+    const h = make();
+    await start(h);
+    h.api.event(orderTradeUpdate({ symbol: 'BTCUSDT', side: 'BUY', qty: 0.01, price: 83_000, orderId: 1, tradeId: 1 }));
+    expect(h.of('account.fill')).toHaveLength(1);
+    await tick(10_000);
+    h.api.refuseSockets = true;
+    h.api.dropAll();
+    await tick(20_000);
+    // 끊긴 사이에 체결 2건 + 이미 실시간으로 받은 1건(경계 여유 구간)
+    h.api.trades = [trade(1, T0 + 5_000), trade(2, T0 + 15_000), trade(3, T0 + 25_000)];
+    h.api.refuseSockets = false;
+    await tick(60_000);
+    expect(h.feed.status.state).toBe('open');
+    expect(h.of('account.fill').map((f) => f.tradeId)).toEqual([1, 2, 3]); // 1은 중복 제거
+    const call = h.api.callsTo('/fapi/v1/userTrades')[0]!;
+    expect(call).toMatchObject({ hasSignature: true, headers: { 'X-MBX-APIKEY': FAKE_API_KEY } });
+    expect(call.params.symbol).toBe('BTCUSDT');
+    expect(Number(call.params.startTime)).toBe(T0 + 500 - 60_000); // 마지막 생존 시각(체결 직후 포지션 갱신) − 60초
+    expect(h.api.invalidSignatures).toBe(0);
+  });
+
+  it('처음 연결할 때는 보충 조회를 하지 않고, 체결 규칙이 없는 심볼은 조회하지 않는다', async () => {
+    const h = make({}, { fillSymbols: [] });
+    await start(h);
+    h.api.dropAll();
+    await tick(1000);
+    expect(h.api.callsTo('/fapi/v1/userTrades')).toHaveLength(0);
+    const first = make();
+    await start(first);
+    expect(first.api.callsTo('/fapi/v1/userTrades')).toHaveLength(0);
+  });
+
+  it('절전 복귀(reconnectNow)에서도 끊긴 구간의 체결을 보충한다', async () => {
+    const h = make();
+    await start(h);
+    await tick(30_000);
+    h.api.trades = [trade(9, T0 + 40_000)];
+    h.feed.reconnectNow();
+    await tick(0);
+    expect(h.of('account.fill').map((f) => f.tradeId)).toEqual([9]);
+  });
+
+  it('보충 조회가 키 거부면 멈추고, 요청 한도·서버 오류면 로그만 남기고 계속한다', async () => {
+    const h = make();
+    await start(h);
+    h.api.dropAll();
+    await tick(1000);
+    expect(h.feed.status.state).toBe('open');
+    h.api.queueByPath['/fapi/v1/userTrades'] = [new Response('{}', { status: 500 })];
+    h.api.dropAll();
+    await tick(1000);
+    expect(h.onFatal).not.toHaveBeenCalled();
+    h.api.dropAll();
+    h.api.queueByPath['/fapi/v1/userTrades'] = [new Response(JSON.stringify({ code: -2015, msg: 'x' }), { status: 401 })];
+    await tick(1000);
+    expect(h.onFatal).toHaveBeenCalledWith('userTrades rejected');
+  });
+});
+
 describe('선물 계정 연결: 키 문제 (FR-KEY-02, FR-KEY-04, D-42)', () => {
   it('키를 쓸 수 없다고 판정되면(권한 위반 등) 연결하지 않고 멈춘다', async () => {
     const h = make();

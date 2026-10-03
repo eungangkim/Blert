@@ -45,7 +45,18 @@ export interface FakePositionRow {
  * 선물 listenKey(POST/PUT/DELETE /fapi/v1/listenKey)와 포지션 조회(GET /fapi/v3/positionRisk)를 흉내 내는 가짜 서버.
  * listenKey 요청은 X-MBX-APIKEY 헤더만 확인하고(서명 없음), 포지션 조회는 서명을 공개키로 검증한다.
  */
+export interface FakeFutTrade {
+  symbol: string;
+  id: number;
+  orderId: number;
+  side: 'BUY' | 'SELL';
+  price: number;
+  qty: number;
+  time: number;
+}
+
 export class FakeFuturesApi {
+  trades: FakeFutTrade[] = [];
   sockets: FutSocket[] = [];
   refuseSockets = false;
   positions: FakePositionRow[] = [];
@@ -53,6 +64,8 @@ export class FakeFuturesApi {
   expireNextKeepalive = false;
   /** 앞쪽부터 한 번씩 먼저 돌려줄 특수 응답 (키 거부 등) */
   queue: Response[] = [];
+  /** 경로별로 먼저 돌려줄 특수 응답 */
+  queueByPath: Record<string, Response[]> = {};
   invalidSignatures = 0;
   readonly calls: { method: string; origin: string; path: string; params: Record<string, string>; headers: Record<string, string>; hasSignature: boolean }[] = [];
   private issued = 0;
@@ -99,7 +112,7 @@ export class FakeFuturesApi {
     this.calls.push({ method, origin: u.origin, path: u.pathname, params, headers, hasSignature: sigIdx >= 0 });
 
     if (headers['X-MBX-APIKEY'] !== this.apiKey) return new Response(JSON.stringify({ code: -2014, msg: 'API-key format invalid.' }), { status: 401 });
-    const special = this.queue.shift();
+    const special = this.queueByPath[u.pathname]?.shift() ?? this.queue.shift();
     if (special) return special;
 
     if (u.pathname === '/fapi/v1/listenKey') {
@@ -115,6 +128,22 @@ export class FakeFuturesApi {
         return new Response('{}', { status: 200 });
       }
       return new Response('{}', { status: 200 });
+    }
+
+    if (u.pathname === '/fapi/v1/userTrades') {
+      const signed = url.slice(url.indexOf('?') + 1, sigIdx);
+      const signature = sigIdx < 0 ? '' : decodeURIComponent(url.slice(sigIdx + '&signature='.length));
+      if (sigIdx < 0 || !verify(null, Buffer.from(signed, 'utf8'), this.publicKey, Buffer.from(signature, 'base64'))) {
+        this.invalidSignatures++;
+        return new Response(JSON.stringify({ code: -1022, msg: 'Signature for this request is not valid.' }), { status: 400 });
+      }
+      const start = Number(params.startTime ?? 0);
+      const rows = this.trades
+        .filter((t) => t.symbol === params.symbol && t.time >= start)
+        .sort((a, b) => a.time - b.time || a.id - b.id)
+        .slice(0, Number(params.limit ?? 500))
+        .map((t) => ({ symbol: t.symbol, id: t.id, orderId: t.orderId, side: t.side, price: String(t.price), qty: String(t.qty), time: t.time, buyer: t.side === 'BUY', maker: false, positionSide: 'BOTH' }));
+      return new Response(JSON.stringify(rows), { status: 200 });
     }
 
     if (u.pathname === '/fapi/v3/positionRisk') {

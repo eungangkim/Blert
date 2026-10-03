@@ -5,7 +5,7 @@ import type { Logger } from '../shared/logger.js';
 import { allowedHosts as hostsFor, isAllowedUrl, type NetworkMode } from '../shared/network.js';
 import { FUTURES_ACCOUNT_ENDPOINTS, type FuturesAccountEndpoints } from './endpoints.js';
 import { OUTAGE_WARN_MS, ROTATE_AFTER_MS, retryDelayMs, type ConnState, type WebSocketLike, type WsFactory } from './connection.js';
-import { fetchPositions, listenKeyRequest, type AccountRestOptions, type Position } from './account-rest.js';
+import { fetchFuturesTrades, fetchPositions, listenKeyRequest, type AccountRestOptions, type Position, type Trade } from './account-rest.js';
 import type { AuthorizeResult } from './account.js';
 
 const LOG = 'binance.futures-account';
@@ -17,6 +17,8 @@ const KEEPALIVE_MS = 30 * 60_000;
 const POLL_MS = 15_000;
 /** 계정 갱신이 연달아 와도 포지션 조회는 한 번만 하도록 모으는 시간 */
 const REFRESH_DEBOUNCE_MS = 500;
+/** 보충 조회는 끊기기 직전 생존 시각보다 이만큼 앞에서 시작한다 (경계의 체결을 놓치지 않으려는 여유, 중복은 체결 ID로 제거) */
+const BACKFILL_MARGIN_MS = 60_000;
 
 /** 현재 규칙이 선물 계정 연결에 요구하는 것 */
 export interface FuturesWants {
@@ -65,7 +67,8 @@ const num = (v: unknown): number => (typeof v === 'string' || typeof v === 'numb
  * - listenKey는 30분마다 유지(keepalive)하고, 실패하면 다시 연결한다. 24시간 만료 전에도 미리 다시 연결한다.
  * - 연결이 열리면 포지션을 읽고, 이후 계정 갱신 이벤트가 올 때와 15초마다 다시 읽어 청산가를 갱신한다 (D-46).
  * - 한계: 사용자 스트림은 거래가 없으면 조용해서 반쯤 끊긴 연결을 바로 알아채지 못한다. keepalive 실패나 소켓 종료로 알게 되고,
- *   그동안에도 청산가는 15초 주기 조회로 갱신된다. 끊긴 사이의 선물 체결 보충 조회는 v0.3 범위가 아니다.
+ *   그동안에도 청산가는 15초 주기 조회로 갱신된다.
+ * - 다시 연결되면 끊긴 사이의 선물 체결을 userTrades로 보충 조회한다. 현물(AccountFeed)과 같은 방식이다 (FR-CONN-02, D-44).
  */
 export class FuturesAccountFeed {
   private readonly clock: Clock;
@@ -79,6 +82,10 @@ export class FuturesAccountFeed {
   private connectSeq = 0;
   private session?: Session;
   private outageStart?: number;
+  /** 마지막으로 연결이 살아 있었다고 확인한 시각 (메시지, keepalive·포지션 조회 성공) */
+  private lastAliveAt = 0;
+  /** 보충 조회를 시작할 시각: 끊기기 직전의 생존 시각 */
+  private resumeFrom?: number;
   private seenTrades = new Set<string>();
   private timers: Partial<Record<TimerName, ReturnType<typeof setTimeout>>> = {};
 
@@ -114,6 +121,7 @@ export class FuturesAccountFeed {
   /** 절전 복귀 등: 끊김으로 세지 않고 즉시 다시 연결한다. 연결이 열리면 포지션을 다시 읽는다. */
   reconnectNow(): void {
     if (this.stopped || this.state === 'idle' || this.state === 'closed') return;
+    this.resumeFrom = this.resumeFrom ?? this.lastAliveAt;
     for (const k of ['retry', 'rotate', 'keepalive', 'poll', 'refresh', 'outageWarn'] as const) this.clear(k);
     this.retire(this.session);
     this.session = undefined;
@@ -187,6 +195,7 @@ export class FuturesAccountFeed {
     this.outageStart = undefined;
     this.clear('outageWarn');
     this.attempt = 0;
+    this.lastAliveAt = this.clock.now();
     this.setState('open');
     if (reconnect && outageStart !== undefined) {
       const now = this.clock.now();
@@ -194,7 +203,10 @@ export class FuturesAccountFeed {
     }
     this.timers.rotate = setTimeout(() => this.rotate(), ROTATE_AFTER_MS);
     this.armKeepalive(session);
+    const from = (this.resumeFrom ?? this.lastAliveAt) - BACKFILL_MARGIN_MS;
+    this.resumeFrom = undefined;
     void this.refresh(session).then(() => this.armPoll(session));
+    if (reconnect) void this.backfillFills(session, from);
   }
 
   /** 24시간 만료 전에 미리 다시 연결한다 (끊김으로 세지 않음) */
@@ -214,6 +226,7 @@ export class FuturesAccountFeed {
     this.session = undefined;
     if (this.outageStart === undefined) {
       this.outageStart = this.clock.now();
+      this.resumeFrom = this.lastAliveAt;
       this.timers.outageWarn = setTimeout(() => this.warnOutage(), OUTAGE_WARN_MS);
     }
     this.attempt++;
@@ -241,7 +254,10 @@ export class FuturesAccountFeed {
       if (session.dead || this.stopped) return;
       const r = await listenKeyRequest('PUT', session.creds.apiKey, this.rest());
       if (session.dead || this.stopped) return;
-      if (r.ok) return this.armKeepalive(session);
+      if (r.ok) {
+        this.lastAliveAt = this.clock.now();
+        return this.armKeepalive(session);
+      }
       if (r.reason === 'rejected') return this.fatal('listenKey keepalive rejected');
       this.o.logger?.warn(LOG, `listenKey keepalive failed (${r.reason})`);
       this.retire(session);
@@ -259,6 +275,7 @@ export class FuturesAccountFeed {
       return;
     }
     if (typeof msg !== 'object' || msg === null) return;
+    this.lastAliveAt = this.clock.now();
     switch (msg.e) {
       case 'ORDER_TRADE_UPDATE': {
         const o = msg.o as Record<string, unknown> | undefined;
@@ -268,11 +285,7 @@ export class FuturesAccountFeed {
         const orderId = num(o.i);
         const tradeId = num(o.t);
         if (typeof o.s !== 'string' || ![qty, price, orderId, tradeId].every(Number.isFinite) || tradeId < 0) return;
-        const key = `${o.s}:${tradeId}`;
-        if (this.seenTrades.has(key)) return;
-        this.seenTrades.add(key);
-        if (this.seenTrades.size > SEEN_TRADES_MAX) this.seenTrades.delete(this.seenTrades.values().next().value as string);
-        this.emit({ type: 'account.fill', ts: iso(this.clock.now()), market: 'futures', symbol: o.s, side: o.S === 'SELL' ? 'SELL' : 'BUY', qty, price, orderId, tradeId });
+        this.emitFill({ symbol: o.s, side: o.S === 'SELL' ? 'SELL' : 'BUY', qty, price, orderId, tradeId, time: Date.now() });
         this.scheduleRefresh(session); // 체결로 포지션이 바뀌었으니 청산가도 다시 읽는다
         return;
       }
@@ -286,6 +299,33 @@ export class FuturesAccountFeed {
       default:
         return;
     }
+  }
+
+  /** 같은 체결 ID는 한 번만 알린다 (실시간으로 받은 체결이 보충 조회에 또 나와도 중복 없음) */
+  private emitFill(t: Trade): boolean {
+    const key = `${t.symbol}:${t.tradeId}`;
+    if (this.seenTrades.has(key)) return false;
+    this.seenTrades.add(key);
+    if (this.seenTrades.size > SEEN_TRADES_MAX) this.seenTrades.delete(this.seenTrades.values().next().value as string);
+    this.emit({ type: 'account.fill', ts: iso(this.clock.now()), market: 'futures', symbol: t.symbol, side: t.side, qty: t.qty, price: t.price, orderId: t.orderId, tradeId: t.tradeId });
+    return true;
+  }
+
+  /** 다시 연결된 뒤 끊긴 사이의 선물 체결을 심볼별로 조회해 알린다 (FR-CONN-02) */
+  private async backfillFills(session: Session, from: number): Promise<void> {
+    let found = 0;
+    for (const symbol of new Set(this.o.wants().fillSymbols)) {
+      if (session.dead || this.stopped) return;
+      const r = await fetchFuturesTrades(symbol, from, session.creds, this.rest());
+      if (session.dead || this.stopped) return;
+      if (!r.ok) {
+        if (r.reason === 'rejected') return this.fatal('userTrades rejected');
+        if (r.reason !== 'invalid-symbol') this.o.logger?.warn(LOG, `trade backfill failed for ${symbol} (${r.reason})`);
+        continue;
+      }
+      for (const t of r.trades.sort((a, b) => a.time - b.time || a.tradeId - b.tradeId)) if (this.emitFill(t)) found++;
+    }
+    this.o.logger?.info(LOG, `trade backfill done: ${found} missed trades`);
   }
 
   // ---- 포지션 조회 (D-46) ----
@@ -323,6 +363,7 @@ export class FuturesAccountFeed {
       this.o.logger?.warn(LOG, `position refresh failed (${r.reason})`);
       return;
     }
+    this.lastAliveAt = this.clock.now();
     const ts = iso(this.clock.now());
     for (const symbol of symbols) {
       const mine = r.positions.filter((p) => p.symbol === symbol);
