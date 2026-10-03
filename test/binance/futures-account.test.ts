@@ -154,13 +154,13 @@ describe('선물 계정 연결: listenKey 방식 (D-45, FR-ACC-03)', () => {
 });
 
 describe('선물 계정 연결: 유지·재연결 (AC-40, FR-KEY-04)', () => {
-  it('AC-40 listenKey를 30분마다 유지(PUT)한다', async () => {
+  it('AC-40 listenKey를 5분마다 유지(PUT)한다 (반쯤 끊긴 연결을 최대 5분 안에 알아채기 위함)', async () => {
     const h = make();
     await start(h);
-    await tick(30 * 60_000);
+    await tick(5 * 60_000);
     expect(h.api.callsTo('/fapi/v1/listenKey', 'PUT')).toHaveLength(1);
     expect(h.api.callsTo('/fapi/v1/listenKey', 'PUT')[0]).toMatchObject({ headers: { 'X-MBX-APIKEY': FAKE_API_KEY }, hasSignature: false });
-    await tick(30 * 60_000);
+    await tick(5 * 60_000);
     expect(h.api.callsTo('/fapi/v1/listenKey', 'PUT')).toHaveLength(2);
     expect(h.api.sockets).toHaveLength(1); // 연결은 그대로
   });
@@ -170,7 +170,7 @@ describe('선물 계정 연결: 유지·재연결 (AC-40, FR-KEY-04)', () => {
     h.api.positions = [long()];
     await start(h);
     h.api.expireNextKeepalive = true;
-    await tick(30 * 60_000);
+    await tick(5 * 60_000);
     expect(h.feed.status.state).toBe('retrying');
     const longsBefore = h.of('account.position').filter((p) => p.side === 'LONG').length;
     await tick(1000); // 첫 재시도 대기 (1초)
@@ -181,6 +181,29 @@ describe('선물 계정 연결: 유지·재연결 (AC-40, FR-KEY-04)', () => {
     expect(h.of('account.position').filter((p) => p.side === 'LONG')).toHaveLength(longsBefore + 1); // 다시 연결하면서 포지션을 다시 읽었다
     expect(h.of('conn.gap')).toHaveLength(1);
     expect(h.of('conn.gap')[0]).toMatchObject({ reason: 'disconnect' });
+  });
+
+  it('AC-40 반쯤 끊긴 연결은 유지(PUT) 실패로 5분 안에 알아채고, 중단 구간은 알아챈 시각이 아니라 마지막 생존 시각부터 알린다 (NFR-REL-02)', async () => {
+    const h = make({}, { liqSymbols: [] }); // 포지션 조회가 없어 마지막 생존 시각이 연결 시각(T0)에 머문다
+    await start(h);
+    h.api.expireNextKeepalive = true; // 소켓은 닫히지 않았지만 서버에서는 이미 죽은 연결
+    await tick(5 * 60_000);
+    expect(h.feed.status.state).toBe('retrying');
+    await tick(1000);
+    expect(h.feed.status.state).toBe('open');
+    const [gap] = h.of('conn.gap');
+    expect(gap).toMatchObject({ reason: 'disconnect', from: new Date(T0).toISOString() });
+    expect(Date.parse(gap!.to)).toBeGreaterThanOrEqual(T0 + 5 * 60_000);
+  });
+
+  it('소켓이 닫혀서 바로 알아챈 끊김은 닫힌 시각부터 구간으로 센다 (마지막 생존 시각이 오래돼도 부풀리지 않는다)', async () => {
+    const h = make({}, { liqSymbols: [] });
+    await start(h);
+    await tick(4 * 60_000);
+    h.api.dropAll();
+    await tick(1000);
+    const [gap] = h.of('conn.gap');
+    expect(Date.parse(gap!.from)).toBe(T0 + 4 * 60_000);
   });
 
   it('AC-40 연결이 끊기면 같은 백오프로 다시 연결하고, 매번 키 권한을 다시 확인한다 (FR-KEY-04)', async () => {
@@ -391,7 +414,7 @@ describe('선물 계정 연결: 안전 (NFR-SEC-01, NFR-SEC-02, AC-41)', () => {
     h.api.positions = [long()];
     await start(h);
     h.api.expireNextKeepalive = true;
-    await tick(30 * 60_000);
+    await tick(5 * 60_000);
     await tick(1000);
     h.api.refuseSockets = true;
     h.api.dropAll();

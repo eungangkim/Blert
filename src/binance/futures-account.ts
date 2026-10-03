@@ -11,8 +11,12 @@ import type { AuthorizeResult } from './account.js';
 const LOG = 'binance.futures-account';
 export const FUTURES_ACCOUNT_STREAM = 'futures-account';
 const SEEN_TRADES_MAX = 5000;
-/** listenKey는 60분 안에 유지해야 한다. 절반 간격으로 갱신한다 (문서: Start-User-Data-Stream) */
-const KEEPALIVE_MS = 30 * 60_000;
+/**
+ * listenKey는 60분 안에 유지해야 한다 (문서: Start-User-Data-Stream). 그보다 훨씬 자주(5분) 보내는 이유:
+ * 선물 사용자 스트림은 요청을 받지 않고 거래가 없으면 조용해서, 반쯤 끊긴 연결을 알아챌 수단이 이 요청의 실패뿐이다.
+ * 5분이면 반쯤 끊긴 연결을 최대 5분 안에 알아채고, 중단 구간 시작 시각의 오차도 그 안이다 (결정: B안).
+ */
+const KEEPALIVE_MS = 5 * 60_000;
 /** 청산가는 사용자 데이터 이벤트에 없어서, 이벤트가 올 때와 이 간격마다 포지션을 다시 읽는다 (D-46, D-50) */
 const POLL_MS = 15_000;
 /** 계정 갱신이 연달아 와도 포지션 조회는 한 번만 하도록 모으는 시간 */
@@ -64,7 +68,7 @@ const num = (v: unknown): number => (typeof v === 'string' || typeof v === 'numb
  * 선물 사용자 데이터 (v0.3, 체결·포지션). 바이낸스에 listenKey 외의 방식이 없어 선물에 한해 listenKey를 쓴다 (D-45).
  * 문서 링크는 endpoints.ts.
  * - 연결을 시도할 때마다 authorize()로 키를 다시 확인하고(FR-KEY-04) listenKey를 새로 발급받는다.
- * - listenKey는 30분마다 유지(keepalive)하고, 실패하면 다시 연결한다. 24시간 만료 전에도 미리 다시 연결한다.
+ * - listenKey는 5분마다 유지(keepalive)하고, 실패하면 다시 연결한다. 24시간 만료 전에도 미리 다시 연결한다.
  * - 연결이 열리면 포지션을 읽고, 이후 계정 갱신 이벤트가 올 때와 15초마다 다시 읽어 청산가를 갱신한다 (D-46).
  * - 한계: 사용자 스트림은 거래가 없으면 조용해서 반쯤 끊긴 연결을 바로 알아채지 못한다. keepalive 실패나 소켓 종료로 알게 되고,
  *   그동안에도 청산가는 15초 주기 조회로 갱신된다.
@@ -218,16 +222,18 @@ export class FuturesAccountFeed {
 
   // ---- 끊김 ----
 
-  private lost(reason: string): void {
+  /** silentSince: 소리 없이 끊긴 것을 뒤늦게 알아챈 경우, 마지막으로 살아 있음을 확인한 시각. 중단 구간은 그때부터로 알린다 (NFR-REL-02) */
+  private lost(reason: string, silentSince?: number): void {
     if (this.stopped) return;
     this.o.logger?.info(LOG, `lost: ${reason}`);
     for (const k of ['rotate', 'keepalive', 'poll', 'refresh'] as const) this.clear(k);
     this.retire(this.session);
     this.session = undefined;
     if (this.outageStart === undefined) {
-      this.outageStart = this.clock.now();
+      this.outageStart = silentSince !== undefined && silentSince > 0 ? Math.min(silentSince, this.clock.now()) : this.clock.now();
       this.resumeFrom = this.lastAliveAt;
-      this.timers.outageWarn = setTimeout(() => this.warnOutage(), OUTAGE_WARN_MS);
+      const wait = Math.max(0, this.outageStart + OUTAGE_WARN_MS - this.clock.now());
+      this.timers.outageWarn = setTimeout(() => this.warnOutage(), wait);
     }
     this.attempt++;
     this.setState('retrying');
@@ -261,7 +267,7 @@ export class FuturesAccountFeed {
       if (r.reason === 'rejected') return this.fatal('listenKey keepalive rejected');
       this.o.logger?.warn(LOG, `listenKey keepalive failed (${r.reason})`);
       this.retire(session);
-      this.lost('keepalive failed'); // 만료됐거나 연결이 불안하다: 새 listenKey로 다시 연결한다
+      this.lost('keepalive failed', this.lastAliveAt); // 만료됐거나 반쯤 끊겼다: 마지막 생존 시각부터 중단으로 알리고, 새 listenKey로 다시 연결한다
     }, this.timing.keepaliveMs);
   }
 

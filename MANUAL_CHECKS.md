@@ -205,7 +205,7 @@ blert는 이를 피하는 방식(`-EncodedCommand`·WinRT 미사용)으로 알�
 1. `blert add liq f:BTC 8%` → `blert run` → `futures-account 연결됨`
 2. 이더넷(또는 Wi-Fi)을 끈 뒤 약 1분 기다리고 다시 켭니다.
 3. **기대:** 연결이 끊겼다는 안내가 나오고, 복구되면 `futures-account 연결됨`과 함께 **"감시 중단 구간 있음"** 알림이 온다. 이어서 청산가 거리가 다시 계산되어 알림 쿨다운이 지났다면 청산가 알림도 다시 온다.
-4. (선택) 40분 이상 켜 두고 로그(`%APPDATA%\blert\logs`)에 `listenKey keepalive failed`가 없는지 확인한다. 30분마다 listenKey를 유지한다.
+4. (선택) 20분 이상 켜 두고 로그(`%APPDATA%\blert\logs`)에 `listenKey keepalive failed`가 없는지 확인한다. 5분마다 listenKey를 유지한다.
 5. **끊긴 사이 체결 보충(AC-40):** `blert add fill f:BTC`도 켜 두고 `blert run` 후, 연결이 끊긴 상태에서는 Postman으로 데모 주문을 넣을 수 없으니 다음 방법을 씁니다. 관리자 메모장으로 `C:\Windows\System32\drivers\etc\hosts`에 `127.0.0.1 demo-fstream.binance.com` 한 줄을 추가하고 `ipconfig /flushdns` → 이더넷을 껐다 켜서 기존 연결만 죽입니다(재연결은 막힘, REST용 `demo-fapi`는 그대로라 Postman 주문은 가능). 막힌 동안 데모 선물 주문을 한 건 넣고, hosts 줄을 지운 뒤 `ipconfig /flushdns`. **기대:** 재연결 직후 그 체결이 알림으로 오고, 이미 받은 체결은 다시 오지 않으며 "감시 중단 구간" 알림도 온다. 끝나면 hosts 줄이 남아 있지 않은지 확인하세요.
 6. 한계: 사용자 스트림이 반쯤 끊겨도 바로 알아채지 못할 수 있습니다. 그 동안에도 청산가는 15초마다 다시 읽습니다.
 
