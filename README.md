@@ -84,6 +84,23 @@ blert add fill f:BTC              # BTC 선물 주문 체결 알림
 - 선물 체결은 심볼을 지정해야 합니다(`f:all` 없음). 한 심볼에 롱·숏이 함께 있으면 청산가에 더 가까운 쪽 기준입니다.
 - 선물 사용자 데이터 스트림은 바이낸스가 listenKey 방식만 제공해서, 선물에 한해 listenKey를 씁니다(현물은 쓰지 않습니다).
 
+## 백그라운드로 실행 (데몬)
+
+터미널을 닫아도 감시를 계속하려면 `run` 대신 `start`를 씁니다.
+
+```bash
+blert start          # 감시를 백그라운드로 시작 (준비될 때까지 기다렸다가 결과를 알려줍니다)
+blert status         # 실행 여부, 규칙 수, 연결 상태, 최근 감시 중단 구간
+blert logs           # 로그 마지막 50줄 (-n 20: 줄 수, -f: 새 줄을 이어서 보기)
+blert stop           # 상태를 저장하고 정상 종료
+```
+
+- 데몬이 실행 중일 때 `blert add`, `del`, `pause`, `resume`으로 규칙을 바꾸면 **재시작 없이** 반영됩니다. 포그라운드 `blert run`도 같습니다.
+- 알림과 소리는 `run`과 같게 나옵니다. 화면 출력은 없고 알림 전체가 `blert logs`에 남습니다.
+- 데몬이 강제 종료되거나 보안 프로그램에 의해 종료되면, 이후 어떤 명령이든 실행할 때 한 줄로 경고합니다. `blert start`로 다시 시작하면 멈춰 있던 구간이 기록됩니다.
+- `blert run`과 `blert start`는 동시에 실행할 수 없습니다. 이미 실행 중이면 `blert status`를 안내합니다.
+- 컴퓨터를 재부팅하면 데몬도 꺼집니다(부팅 시 자동 시작은 이후 버전의 기능입니다).
+
 ## 저장 위치
 
 Windows `%APPDATA%\blert\`, macOS·Linux `~/.config/blert/` — `config.json`, `rules.json`, `state.json`, `logs/`.

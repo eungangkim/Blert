@@ -336,7 +336,7 @@
   "status.gap": "최근 감시 중단: {from} ~ {to} ({reason}) {ongoing}",
   "status.gapOngoing": "· 아직 이어지는 중",
   "status.foreground": "blert 감시가 포그라운드(blert run)로 실행 중입니다 — PID {pid}. 데몬이 아니라서 그 터미널을 닫으면 종료됩니다. 데몬으로 쓰려면 Ctrl+C로 종료한 뒤 blert start",
-  "status.crashed": "blert {mode}가 비정상 종료된 것으로 보입니다(마지막 생존 {alive}). 감시가 멈춰 있습니다. 다시 시작하려면 blert start",
+  "status.crashed": "blert {mode}: 비정상 종료된 것으로 보입니다(마지막 생존 {alive}). 감시가 멈춰 있습니다. 다시 시작하려면 blert start",
   "status.mode.foreground": "감시",
   "status.mode.daemon": "데몬",
   "warn.daemonDied": "경고: blert 데몬이 비정상 종료된 것으로 보입니다(마지막 생존 {alive}). 감시가 멈춰 있습니다. 다시 시작하려면 blert start",
