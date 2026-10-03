@@ -6,7 +6,7 @@ import { Logger, mask } from '../shared/logger.js';
 import type { Alert, Market, Rule } from '../shared/types.js';
 import type { NetworkMode } from '../shared/network.js';
 import { t } from '../i18n/index.js';
-import { Store, type PidFile } from '../store/index.js';
+import { Store, type PidFile, type StatusFile } from '../store/index.js';
 import { Engine } from '../engine/index.js';
 import { AccountFeed, BinanceFeed, FuturesAccountFeed, planSubscriptions, retryDelayMs, type AccountFeedOptions, type AccountWants, type AuthorizeResult, type FeedOptions, type FuturesAccountFeedOptions, type FuturesWants, type StreamPlan } from '../binance/index.js';
 import type { KeyService } from '../security/index.js';
@@ -32,6 +32,13 @@ export interface Timing {
   healthyMs: number;
   /** 잠금 파일(blert.pid)의 생존 신호 갱신 간격 */
   heartbeatMs: number;
+  /** 데몬: 상태 파일(blert.status.json) 갱신 간격 (D-59) */
+  statusMs: number;
+  /** 데몬: 종료 요청 파일(blert.stop)을 확인하는 간격 (D-57) */
+  stopPollMs: number;
+  /** 다른 프로세스의 규칙 변경을 확인하는 주기와 파일 변경 이벤트 디바운스 (D-56) */
+  rulesPollMs: number;
+  rulesDebounceMs: number;
 }
 
 export const DEFAULT_TIMING: Timing = {
@@ -41,6 +48,10 @@ export const DEFAULT_TIMING: Timing = {
   silenceMs: 30_000,
   healthyMs: 60_000,
   heartbeatMs: 15_000,
+  statusMs: 15_000,
+  stopPollMs: 1_000,
+  rulesPollMs: 5_000,
+  rulesDebounceMs: 200,
 };
 
 export interface RuntimeIo {
@@ -58,8 +69,10 @@ export interface RuntimeOptions {
   /** 설정 폴더 (B8) */
   dir: string;
   io: RuntimeIo;
-  /** 로거를 받아 알림 출력기를 만든다 (알림 전체를 로그에 남기기 위함) */
-  makeNotifier: (logger: Logger) => Notifier;
+  /** 로거를 받아 알림 출력기를 만든다 (알림 전체를 로그에 남기기 위함). 데몬은 console 어댑터를 쓰지 않는다 (D-55) */
+  makeNotifier: (logger: Logger, mode: RunMode) => Notifier;
+  /** 실행 모드. 기본은 foreground. 데몬은 상태 파일을 쓰고 종료 요청 파일을 확인한다 (v0.4) */
+  mode?: RunMode;
   verbose?: boolean;
   clock?: Clock;
   timing?: Partial<Timing>;
@@ -75,6 +88,8 @@ export interface RuntimeOptions {
   /** 선물 계정 연결 옵션 덮어쓰기 (v0.3, 테스트용) */
   futuresAccountFeedOptions?: Partial<Omit<FuturesAccountFeedOptions, 'bus' | 'authorize' | 'wants' | 'onFatal'>>;
 }
+
+export type RunMode = 'foreground' | 'daemon';
 
 type StartResult = { ok: true } | { ok: false; failedMarkets: string[] };
 
@@ -111,6 +126,13 @@ export class Runtime {
   private silenceTimer?: ReturnType<typeof setTimeout>;
   private heartbeatTimer?: ReturnType<typeof setTimeout>;
   private lockHeld = false;
+  private readonly mode: RunMode;
+  private stopWatch?: () => void;
+  private statusTimer?: ReturnType<typeof setInterval>;
+  private stopPollTimer?: ReturnType<typeof setInterval>;
+  private startedAtIso = '';
+  private ruleCount = { spot: 0, futures: 0 };
+  private lastGap?: NonNullable<StatusFile['lastGap']>;
   /** 이전 실행이 정상 종료하지 못했다면 그 기록 */
   private previousRun?: PidFile;
   /** 시작할 때 연결하지 못해 아직 감시하지 못하는 시장 */
@@ -126,10 +148,11 @@ export class Runtime {
   constructor(private o: RuntimeOptions) {
     this.clock = o.clock ?? systemClock;
     this.timing = { ...DEFAULT_TIMING, ...o.timing };
+    this.mode = o.mode ?? 'foreground';
     this.exit = new Promise((resolve) => (this.finish = resolve));
     this.logger = new Logger(new FileLogSink(join(o.dir, 'logs'), this.clock), o.verbose ? 'debug' : 'info', () => this.clock.now());
     this.bus = new EventBus({ onError: (e) => this.onInternalError(e) });
-    this.notifier = o.makeNotifier(this.logger);
+    this.notifier = o.makeNotifier(this.logger, o.mode ?? 'foreground');
     this.store = new Store(o.dir, {
       clock: this.clock,
       onRulesChanged: (ruleIds) => this.bus.emit({ type: 'rules.changed', ts: iso(this.clock.now()), ruleIds }),
@@ -153,6 +176,40 @@ export class Runtime {
     }
   }
 
+  /**
+   * 백그라운드 데몬 실행 (`blert daemon-run`, D-54). 감시 코어는 runForeground와 같다.
+   * 터미널이 없으므로 시작 실패는 상태 파일에 남겨 `blert start`가 화면에 보여 주게 하고 (D-58),
+   * 종료 요청 파일(blert.stop)을 확인해 정상 종료한다 (D-57).
+   */
+  async runDaemon(): Promise<ExitCodeValue> {
+    const off = this.installProcessHandlers();
+    try {
+      let started: StartResult;
+      try {
+        started = await this.start();
+      } catch (e) {
+        // 이미 실행 중인 다른 실행의 상태 파일을 덮어쓰지 않는다
+        if (e instanceof BlertError && (e.messageKey === 'err.runAlready' || e.messageKey === 'err.runAlreadyDaemon')) return e.exitCode;
+        if (e instanceof BlertError) {
+          await this.writeFailure(e.messageKey, e.params, e.exitCode);
+          return e.exitCode;
+        }
+        const detail = mask(e instanceof Error ? e.message : String(e));
+        this.logger.error(LOG, `daemon start failed: ${detail}`);
+        await this.writeFailure('err.internal', { detail, logsDir: join(this.o.dir, 'logs') }, ExitCode.internal);
+        return ExitCode.internal;
+      }
+      if (!started.ok) {
+        await this.stop(ExitCode.connection, false);
+        await this.writeFailure('err.startConnect', { streams: started.failedMarkets.join(', ') }, ExitCode.connection);
+        return ExitCode.connection;
+      }
+      return await this.exit;
+    } finally {
+      off();
+    }
+  }
+
   /** B9 시작: 설정 로드 → 스키마 확인·마이그레이션 → 중복 실행 확인 → 스트림 연결 → 감시 시작 알림 */
   async start(): Promise<StartResult> {
     const [rules, config] = await Promise.all([this.store.loadRules(), this.store.loadConfig(), this.store.loadStates()]);
@@ -160,11 +217,17 @@ export class Runtime {
     const enabled = rules.filter((r) => r.enabled);
     if (enabled.length === 0) throw new BlertError('err.runNoRules');
 
-    const lock = await this.store.acquireRunLock({ pid: process.pid, now: this.clock.now(), staleMs: HEARTBEAT_STALE_MS });
-    if (!lock.ok) throw new BlertError('err.runAlready', { pid: lock.holder.pid });
+    const lock = await this.store.acquireRunLock({ pid: process.pid, now: this.clock.now(), staleMs: HEARTBEAT_STALE_MS, mode: this.mode });
+    if (!lock.ok) throw new BlertError(lock.holder.mode === 'daemon' ? 'err.runAlreadyDaemon' : 'err.runAlready', { pid: lock.holder.pid });
     this.lockHeld = true;
     this.previousRun = lock.previous;
     this.armHeartbeat();
+    this.startedAtIso = iso(this.clock.now());
+    this.ruleCount = this.countRules(enabled);
+    if (this.mode === 'daemon') {
+      await this.store.clearStopRequest(); // 이전 실행이 남긴 종료 요청은 무시한다
+      await this.writeStatus('starting');
+    }
 
     this.logger.info(LOG, `starting with ${enabled.length} rules`);
     if (this.o.network === 'testnet') this.o.io.out(t('run.testnetBanner'));
@@ -194,6 +257,12 @@ export class Runtime {
     this.notifier.announce(alert);
     this.o.io.out(t('run.started'));
     this.started = true;
+    // 다른 터미널의 규칙 변경(blert add 등)을 반영한다. 데몬과 포그라운드가 같이 쓴다 (D-56)
+    this.stopWatch = this.store.watchRules(() => this.bus.emit({ type: 'rules.changed', ts: iso(this.clock.now()), ruleIds: [] }), {
+      pollMs: this.timing.rulesPollMs,
+      debounceMs: this.timing.rulesDebounceMs,
+    });
+    if (this.mode === 'daemon') this.armDaemonTimers();
     this.syncAccountFeed(); // 계정 알림이 있으면 키를 확인하고 계정 연결을 시작한다
     // 일부 시장만 연결된 채로 시작하면 감시하지 못하는 규칙을 반드시 알린다 (NFR-REL-02). 연결은 계속 재시도한다.
     for (const market of failed as Market[]) this.reportDegraded(market, count(market));
@@ -207,9 +276,18 @@ export class Runtime {
     if (this.stopping) return void (await this.exit);
     this.stopping = true;
     clearTimeout(this.silenceTimer);
+    this.stopWatch?.();
+    this.stopWatch = undefined;
+    clearInterval(this.statusTimer);
+    clearInterval(this.stopPollTimer);
+    if (this.mode === 'daemon' && this.lockHeld) await this.writeStatus('stopping');
     await this.teardown();
     await this.notifier.flush();
     await this.releaseLock(); // PID 파일 삭제 (B9)
+    if (this.mode === 'daemon') {
+      await this.store.clearStatus(process.pid).catch(() => {});
+      await this.store.clearStopRequest().catch(() => {});
+    }
     this.logger.info(LOG, `stopped (exit ${code})`);
     if (announce) this.o.io.out(t('run.stopped'));
     this.finish(code);
@@ -230,6 +308,7 @@ export class Runtime {
       }
     });
     this.bus.on('conn.gap', (e) => {
+      this.lastGap = { from: e.from, to: e.to, reason: e.reason, ...(e.ongoing ? { ongoing: true } : {}) };
       this.logger.warn(LOG, `monitoring gap (${e.reason}${e.ongoing ? ', ongoing' : ''}): ${e.from} ~ ${e.to}`);
     });
     this.bus.on('key.denied', (e) => this.logger.warn(LOG, `account features disabled: ${e.reason}${e.fields?.length ? ` (${e.fields.join(', ')})` : ''}`));
@@ -277,6 +356,7 @@ export class Runtime {
       const rules = await this.store.loadRules();
       if (!this.feed || this.stopping) return;
       this.plan = planSubscriptions(rules);
+      this.ruleCount = this.countRules(rules.filter((r) => r.enabled));
       this.feed.update(this.plan);
       this.accountRules = rules.filter((r) => r.enabled && (r.condition.type === 'fill' || r.condition.type === 'balance' || r.condition.type === 'liq'));
       this.syncAccountFeed();
@@ -441,6 +521,56 @@ export class Runtime {
     this.notifier.announce({ ruleId: 0, kind: 'warn', titleKey: `${titleKey}.title`, params, firedAt: iso(this.clock.now()) });
   }
 
+  // ---- 데몬: 상태 파일과 종료 요청 (D-57, D-58, D-59) ----
+
+  private countRules(rules: Rule[]): { spot: number; futures: number } {
+    return { spot: rules.filter((r) => r.market === 'spot').length, futures: rules.filter((r) => r.market === 'futures').length };
+  }
+
+  private connectionList(): { stream: string; state: string }[] {
+    return [...(this.feed?.status ?? []), ...(this.accountFeed ? [this.accountFeed.status] : []), ...(this.futuresFeed ? [this.futuresFeed.status] : [])].map((s) => ({
+      stream: s.stream,
+      state: s.state,
+    }));
+  }
+
+  private async writeStatus(state: StatusFile['state'], failure?: StatusFile['failure']): Promise<void> {
+    try {
+      await this.store.writeStatus({
+        pid: process.pid,
+        state,
+        startedAt: this.startedAtIso || iso(this.clock.now()),
+        updatedAt: iso(this.clock.now()),
+        rules: this.ruleCount,
+        connections: this.connectionList(),
+        ...(this.lastGap ? { lastGap: this.lastGap } : {}),
+        ...(failure ? { failure } : {}),
+      });
+    } catch (e) {
+      this.logger.error(LOG, `write status failed: ${String(e)}`); // 상태 파일을 못 써도 감시는 계속한다
+    }
+  }
+
+  private writeFailure(messageKey: string, params: Record<string, string | number>, exitCode: ExitCodeValue): Promise<void> {
+    return this.writeStatus('failed', { messageKey, params, exitCode });
+  }
+
+  /** 준비 완료 표시, 주기적 상태 갱신, 종료 요청 확인 */
+  private armDaemonTimers(): void {
+    void this.writeStatus('ready');
+    this.statusTimer = setInterval(() => void this.writeStatus('ready'), this.timing.statusMs);
+    this.statusTimer.unref();
+    this.stopPollTimer = setInterval(() => {
+      void this.store.stopRequested().then((requested) => {
+        if (requested && !this.stopping) {
+          this.logger.info(LOG, 'stop requested');
+          void this.stop(ExitCode.ok, false);
+        }
+      });
+    }, this.timing.stopPollMs);
+    this.stopPollTimer.unref();
+  }
+
   // ---- 실행 잠금·생존 신호 (blert.pid) ----
 
   private armHeartbeat(): void {
@@ -569,8 +699,10 @@ export class Runtime {
 export interface RunnerDeps extends Omit<RuntimeOptions, 'verbose'> {}
 
 /** cli의 `run` 명령이 부르는 진입점 (cli는 runtime을 직접 알 수 없어 포트로 연결한다, B2) */
-export function createRunner(deps: RunnerDeps): { run(opts: { verbose: boolean }): Promise<number> } {
+export function createRunner(deps: RunnerDeps): { run(opts: { verbose: boolean }): Promise<number>; daemon(opts: { verbose: boolean }): Promise<number> } {
   return {
-    run: ({ verbose }) => new Runtime({ ...deps, verbose }).runForeground(),
+    run: ({ verbose }) => new Runtime({ ...deps, verbose, mode: 'foreground' }).runForeground(),
+    // 데몬에는 터미널이 없다. 화면 출력은 버리고 로그와 상태 파일로만 남긴다 (D-54, D-55)
+    daemon: ({ verbose }) => new Runtime({ ...deps, verbose, mode: 'daemon', io: { out: () => {}, err: () => {} } }).runDaemon(),
   };
 }

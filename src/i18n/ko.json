@@ -300,5 +300,6 @@
   "alert.liq.body": "{side} 청산가 {liq} · 마크 {mark} {quote} · 기준 {threshold} 이내",
   "side.LONG": "롱",
   "side.SHORT": "숏",
-  "type.liq": "청산가"
+  "type.liq": "청산가",
+  "err.runAlreadyDaemon": "blert 데몬이 이미 실행 중입니다(PID {pid}). 상태를 확인하거나 종료한 뒤 다시 시작하세요. 예: blert status 또는 blert stop"
 }
