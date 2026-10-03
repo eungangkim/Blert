@@ -156,7 +156,7 @@ describe('cli 오타 제안·도움말', () => {
   });
 
   it('AC-05 모든 명령의 --help에 사용 예가 2개 이상, 고급 옵션은 --advanced에서만', async () => {
-    for (const cmd of defaultCommands) {
+    for (const cmd of defaultCommands.filter((c) => !c.hidden)) {
       h.out.length = 0;
       expect(await h.run(`${cmd.name} --help`)).toBe(0);
       const text = h.out.join('\n');

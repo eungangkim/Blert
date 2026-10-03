@@ -79,3 +79,11 @@ export function renderTable(rows: string[][]): string {
     )
     .join('\n');
 }
+
+/** 사용자 PC의 지역 시각 M/D HH:MM:SS */
+export function formatLocalDateTime(ms: number): string {
+  if (!Number.isFinite(ms)) return '?';
+  const d = new Date(ms);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}

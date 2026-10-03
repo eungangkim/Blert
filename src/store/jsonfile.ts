@@ -20,7 +20,18 @@ export async function atomicWrite(path: string, text: string): Promise<void> {
   const tmp = `${path}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
   try {
     await fs.writeFile(tmp, text, 'utf8');
-    await fs.rename(tmp, path);
+    // Windows에서는 다른 프로세스가 그 파일을 읽는 순간(예: blert status가 상태 파일을 읽음)이나 같은 파일에
+    // 동시에 쓰는 순간에 교체가 EPERM·EBUSY로 실패할 수 있다. 잠깐 뒤 다시 시도한다.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await fs.rename(tmp, path);
+        break;
+      } catch (e) {
+        const code = (e as NodeJS.ErrnoException).code;
+        if (attempt >= 7 || (code !== 'EPERM' && code !== 'EBUSY' && code !== 'EACCES')) throw e;
+        await new Promise((r) => setTimeout(r, 10 * (attempt + 1)));
+      }
+    }
   } catch (e) {
     await fs.rm(tmp, { force: true });
     throw e;

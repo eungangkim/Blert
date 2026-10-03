@@ -11,6 +11,7 @@ import { withLock, type LockOptions } from './lock.js';
 export const SCHEMA_VERSION = 1;
 
 export type { PidFile, AcquireResult } from './pid.js';
+export { pidAlive } from './pid.js';
 
 export const STATUS_SCHEMA_VERSION = 1;
 

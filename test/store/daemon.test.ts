@@ -111,6 +111,14 @@ describe('store 데몬 상태 파일 (blert.status.json, D-58·D-59)', () => {
     expect((await store.readStatus())?.failure).toEqual({ messageKey: 'err.startConnect', params: { streams: 'spot' }, exitCode: 3 });
   });
 
+  it('AC-43 같은 상태 파일에 동시에 여러 번 써도 모두 성공하고 파일은 항상 완전한 JSON이다 (Windows의 교체 충돌 대비)', async () => {
+    const writes = Array.from({ length: 30 }, (_, i) => store.writeStatus(status({ updatedAt: iso(NOW + i) })));
+    const reads = Array.from({ length: 30 }, () => store.readStatus());
+    await expect(Promise.all(writes)).resolves.toHaveLength(30);
+    for (const r of await Promise.all(reads)) if (r) expect(r.state).toBe('ready');
+    expect((await store.readStatus())?.state).toBe('ready');
+  });
+
   it('상태 파일이 없거나 깨졌으면 상태 없음으로 본다', async () => {
     expect(await store.readStatus()).toBeUndefined();
     await writeFile(join(dir, 'blert.status.json'), '{ broken');

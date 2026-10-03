@@ -5,6 +5,7 @@ import { iso, systemClock, type Clock } from '../shared/clock.js';
 import { Logger, mask } from '../shared/logger.js';
 import type { Alert, Market, Rule } from '../shared/types.js';
 import type { NetworkMode } from '../shared/network.js';
+import { RUN_LOCK_STALE_MS } from '../shared/defaults.js';
 import { t } from '../i18n/index.js';
 import { Store, type PidFile, type StatusFile } from '../store/index.js';
 import { Engine } from '../engine/index.js';
@@ -19,7 +20,7 @@ const MARKETS: Market[] = ['spot', 'futures'];
 /** B10: 내부 오류로 감시 코어를 다시 시작하다가 이만큼 연속되면 종료한다 */
 export const MAX_CONSECUTIVE_FAILURES = 3;
 /** 생존 신호가 이만큼 끊기면 잠금 파일의 주인이 멈춘 것으로 본다 (프로세스 번호 재사용 대비) */
-export const HEARTBEAT_STALE_MS = 60_000;
+export const HEARTBEAT_STALE_MS = RUN_LOCK_STALE_MS;
 
 export interface Timing {
   /** 시작할 때 모든 연결이 열리기를 기다리는 시간. 넘으면 연결 불가로 보고 종료 코드 3 */

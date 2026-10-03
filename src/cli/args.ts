@@ -3,8 +3,8 @@ import { t } from '../i18n/index.js';
 import { suggest } from './suggest.js';
 import type { ParsedArgs } from './types.js';
 
-export const VALUE_OPTIONS = ['mode', 'sound', 'name'];
-export const FLAG_OPTIONS = ['help', 'advanced', 'all', 'verbose'];
+export const VALUE_OPTIONS = ['mode', 'sound', 'name', 'lines'];
+export const FLAG_OPTIONS = ['help', 'advanced', 'all', 'verbose', 'follow'];
 /** 모든 명령에서 허용되는 옵션 */
 export const GLOBAL_OPTIONS = ['help', 'advanced', 'verbose'];
 
@@ -17,6 +17,12 @@ export function parseArgs(argv: string[]): ParsedArgs {
     const a = argv[i]!;
     if (a === '-h') {
       flags.add('help');
+    } else if (a === '-f') {
+      flags.add('follow');
+    } else if (a === '-n') {
+      const value = argv[++i];
+      if (value === undefined || value.startsWith('-')) throw new BlertError('err.optionValue', { option: 'lines', example: t('example.option.lines') });
+      values.set('lines', value);
     } else if (a.startsWith('--') && a.length > 2) {
       const [name = '', ...inline] = a.slice(2).split('=');
       if (FLAG_OPTIONS.includes(name)) {

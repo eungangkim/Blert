@@ -27,6 +27,21 @@ export interface NotifierPort {
 /** `blert run`이 부르는 감시 실행기. runtime이 구현하고 진입점에서 연결한다 (B2). 종료 코드를 돌려준다. */
 export interface Runner {
   run(opts: { verbose: boolean }): Promise<number>;
+  /** 데몬 안에서 도는 감시 (숨김 명령 daemon-run, v0.4) */
+  daemon(opts: { verbose: boolean }): Promise<number>;
+}
+
+/**
+ * 데몬 프로세스를 띄우고 끄는 기능과 대기에 쓰는 시계 (v0.4). cli는 child_process를 직접 쓰지 않고
+ * 진입점에서 연결한 구현을 쓴다. 테스트는 가짜 시계와 가짜 프로세스를 넣는다.
+ */
+export interface DaemonPort {
+  /** 같은 실행 파일을 숨김 명령으로 분리 실행한다. exit는 자식이 끝나면 종료 코드로 이행한다 (분리한 뒤에는 의미 없음) */
+  launch(): { pid: number; exit: Promise<number>; detach(): void };
+  /** 프로세스를 강제 종료한다 */
+  kill(pid: number): void;
+  now(): number;
+  sleep(ms: number): Promise<void>;
 }
 
 export interface Deps {
@@ -38,6 +53,10 @@ export interface Deps {
   keys: KeyService;
   /** 개발자 전용 BLERT_NETWORK=testnet 이면 testnet */
   network: NetworkMode;
+  /** 데몬 시작·종료·대기 (v0.4) */
+  daemon: DaemonPort;
+  /** 호출하면 Ctrl+C에 중단되는 신호를 돌려준다 (blert logs -f). 호출한 때부터 Ctrl+C를 가로챈다 */
+  interrupt: () => AbortSignal;
   io: Io;
 }
 
@@ -56,6 +75,8 @@ export interface Ctx {
 
 export interface Command {
   name: string;
+  /** true면 도움말·오타 제안에 나오지 않는 내부 명령 */
+  hidden?: boolean;
   /** 도움말의 사용법 줄 (i18n 키) */
   usageKeys: string[];
   /** 이 명령이 받는 옵션 이름 */

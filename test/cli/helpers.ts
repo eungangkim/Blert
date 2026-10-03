@@ -1,14 +1,35 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runCli, type Deps, type NotifierPort, type PresetService, type Runner } from '../../src/cli/index.js';
+import { runCli, type DaemonPort, type Deps, type NotifierPort, type PresetService, type Runner } from '../../src/cli/index.js';
 import { createPresetService } from '../../src/presets/index.js';
 import { createKeyService } from '../../src/security/index.js';
 import type { NetworkMode } from '../../src/shared/network.js';
 import { FakeKeychain, jsonResponse, restrictions } from '../security/helpers.js';
 import { Store } from '../../src/store/index.js';
 
+/** 데몬 프로세스 대신 쓰는 가짜. 시계는 sleep할 때만 흐른다 (실제로 기다리지 않는다) */
+export interface DaemonSim {
+  nowMs: number;
+  pid: number;
+  launches: number;
+  detached: boolean;
+  kills: number[];
+  /** launch 직후 호출된다 (데몬이 상태 파일을 쓰거나 끝나는 것을 흉내 낸다) */
+  onLaunch?: () => void | Promise<void>;
+  /** sleep할 때마다 호출된다 (시간이 흐르는 동안 데몬이 하는 일을 흉내 낸다) */
+  onSleep?: () => void | Promise<void>;
+  onKill?: (pid: number) => void | Promise<void>;
+  /** launch한 자식을 종료 코드로 끝낸다 */
+  finish?: (code: number) => void;
+  /** logs -f를 끝내는 신호 */
+  abort: AbortController;
+  sleeps: number;
+}
+
 export interface Harness {
+  /** 데몬 시뮬레이션 (v0.4) */
+  sim: DaemonSim;
   deps: Deps;
   /** 설정 폴더(임시). 키 PEM 같은 입력 파일도 여기에 만든다 */
   dir: string;
@@ -70,6 +91,31 @@ export async function makeHarness(
       calls.push(`run:${verbose}`);
       return runCode.value;
     },
+    daemon: async ({ verbose }) => {
+      calls.push(`daemon:${verbose}`);
+      return runCode.value;
+    },
+  };
+  const sim: DaemonSim = { nowMs: Date.UTC(2026, 10, 1, 12, 0, 0), pid: process.pid, launches: 0, detached: false, kills: [], abort: new AbortController(), sleeps: 0 };
+  const daemon: DaemonPort = {
+    launch: () => {
+      sim.launches++;
+      let resolve!: (code: number) => void;
+      const exit = new Promise<number>((r) => (resolve = r));
+      sim.finish = resolve;
+      void sim.onLaunch?.();
+      return { pid: sim.pid, exit, detach: () => void (sim.detached = true) };
+    },
+    kill: (pid) => {
+      sim.kills.push(pid);
+      void sim.onKill?.(pid);
+    },
+    now: () => sim.nowMs,
+    sleep: async (ms) => {
+      sim.sleeps++;
+      sim.nowMs += ms;
+      await sim.onSleep?.();
+    },
   };
   const keychain = new FakeKeychain();
   let responses: (Response | Error)[] = [jsonResponse(restrictions())];
@@ -86,6 +132,8 @@ export async function makeHarness(
     runner,
     keys,
     network,
+    daemon,
+    interrupt: () => sim.abort.signal,
     presets: presets === 'real' ? createPresetService(store) : presets,
     io: {
       out: (t) => void out.push(t),
@@ -97,6 +145,7 @@ export async function makeHarness(
     },
   };
   return {
+    sim,
     deps,
     dir,
     keychain,

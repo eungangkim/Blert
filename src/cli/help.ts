@@ -9,7 +9,8 @@ export function commandHelp(cmd: Command, advanced: boolean): string {
   return out.join('\n');
 }
 
-export function topHelp(commands: Command[], advanced: boolean): string {
+export function topHelp(all: Command[], advanced: boolean): string {
+  const commands = all.filter((c) => !c.hidden);
   const width = Math.max(...commands.map((c) => c.name.length));
   const out = [
     t('help.title'),

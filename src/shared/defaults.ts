@@ -15,6 +15,9 @@ export const DEFAULT_REPEAT: Record<RuleType, RepeatPolicy> = {
   liq: { kind: 'cooldown', ms: 5 * MINUTE }, // B4: 청산가 근접 쿨다운 5분
 };
 
+/** 실행 잠금(blert.pid)의 생존 신호가 이만큼 끊기면 주인이 멈춘 것으로 본다 (D-35, D-61) */
+export const RUN_LOCK_STALE_MS = 60_000;
+
 /** 쿨다운 허용 범위 (B4: 1분 ~ 24시간) */
 export const COOLDOWN_MIN_MS = MINUTE;
 export const COOLDOWN_MAX_MS = DAY;

@@ -1,7 +1,10 @@
 #!/usr/bin/env node
+import { spawn } from 'node:child_process';
+import { closeSync, mkdirSync, openSync } from 'node:fs';
+import { join } from 'node:path';
 import { createInterface, type Interface } from 'node:readline';
 import { runCli } from './cli/index.js';
-import type { Deps, Io } from './cli/index.js';
+import type { DaemonPort, Deps, Io } from './cli/index.js';
 import { createPresetService } from './presets/index.js';
 import { createNotifier } from './notify/index.js';
 import { createRunner } from './runtime/index.js';
@@ -70,9 +73,45 @@ const runner = createRunner({
   io,
   keys,
   network,
-  makeNotifier: (logger) => createNotifier({ out: (line) => io.out(line), soundEnabled, logger }),
+  // 데몬에는 터미널이 없어 console 어댑터를 쓰지 않는다. 알림 전체는 로그에 남는다 (D-55)
+  makeNotifier: (logger, mode) => createNotifier({ out: mode === 'daemon' ? () => {} : (line) => io.out(line), console: mode !== 'daemon', soundEnabled, logger }),
 });
-const deps: Deps = { store, presets: createPresetService(store), notifier, runner, keys, network, io };
+
+/** 같은 실행 파일을 숨김 명령(daemon-run)으로 분리 실행한다 (D-54). 표준 출력·오류는 로그 폴더의 daemon.err로 보낸다. */
+const daemon: DaemonPort = {
+  launch() {
+    mkdirSync(store.logsDir, { recursive: true });
+    const fd = openSync(join(store.logsDir, 'daemon.err'), 'w'); // 시작할 때마다 비운다 (비정상 종료 때 남은 오류 출력만 담는다)
+    const child = spawn(process.execPath, [...process.execArgv, process.argv[1]!, 'daemon-run'], {
+      detached: true,
+      windowsHide: true,
+      stdio: ['ignore', fd, fd],
+      env: process.env,
+    });
+    closeSync(fd);
+    const exit = new Promise<number>((resolve) => {
+      child.once('exit', (code) => resolve(code ?? -1));
+      child.once('error', () => resolve(-1));
+    });
+    return { pid: child.pid ?? -1, exit, detach: () => child.unref() };
+  },
+  kill(pid) {
+    try {
+      process.kill(pid);
+    } catch {
+      // 이미 종료됨
+    }
+  },
+  now: () => Date.now(),
+  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+};
+/** logs -f 가 Ctrl+C로 깔끔하게 끝나도록, 호출한 때부터 Ctrl+C를 가로챈다 */
+const interrupt = (): AbortSignal => {
+  const ac = new AbortController();
+  process.once('SIGINT', () => ac.abort());
+  return ac.signal;
+};
+const deps: Deps = { store, presets: createPresetService(store), notifier, runner, keys, network, daemon, interrupt, io };
 const code = await runCli(process.argv.slice(2), deps);
 io.close();
 process.exitCode = code;
