@@ -14,6 +14,8 @@ export interface PidFile {
   pid: number;
   startedAt: string;
   heartbeatAt: string;
+  /** 이 잠금을 잡은 실행 모드. 없으면(v0.3 이전 파일) 포그라운드로 본다 (v0.4) */
+  mode?: 'foreground' | 'daemon';
 }
 
 export type AcquireResult = { ok: true; previous?: PidFile } | { ok: false; holder: PidFile };
@@ -31,7 +33,13 @@ export async function readPidFile(path: string): Promise<PidFile | undefined> {
   try {
     const data = JSON.parse(await fs.readFile(path, 'utf8')) as Partial<PidFile>;
     if (typeof data.pid !== 'number' || typeof data.heartbeatAt !== 'string') return undefined;
-    return { schemaVersion: PID_SCHEMA_VERSION, pid: data.pid, startedAt: data.startedAt ?? data.heartbeatAt, heartbeatAt: data.heartbeatAt };
+    return {
+      schemaVersion: PID_SCHEMA_VERSION,
+      pid: data.pid,
+      startedAt: data.startedAt ?? data.heartbeatAt,
+      heartbeatAt: data.heartbeatAt,
+      ...(data.mode === 'daemon' || data.mode === 'foreground' ? { mode: data.mode } : {}),
+    };
   } catch {
     return undefined; // 없거나 깨졌으면 주인이 없는 것으로 본다
   }
