@@ -16,7 +16,7 @@ export { pidAlive } from './pid.js';
 export const STATUS_SCHEMA_VERSION = 1;
 
 /**
- * 데몬 상태 파일(blert.status.json, D-58·D-59). 데몬이 15초마다 갱신하고, `blert start`가 준비 완료를 기다릴 때와
+ * 데몬 상태 파일(blert.status.json, D-58·D-59). 데몬이 5초마다 갱신하고, `blert start`가 준비 완료를 기다릴 때와
  * `blert status`가 읽는다. 키·시크릿은 담지 않는다.
  */
 export interface StatusFile {

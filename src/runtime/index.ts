@@ -33,7 +33,7 @@ export interface Timing {
   healthyMs: number;
   /** 잠금 파일(blert.pid)의 생존 신호 갱신 간격 */
   heartbeatMs: number;
-  /** 데몬: 상태 파일(blert.status.json) 갱신 간격 (D-59) */
+  /** 데몬: 상태 파일(blert.status.json) 갱신 간격 (D-59: 5초) */
   statusMs: number;
   /** 데몬: 종료 요청 파일(blert.stop)을 확인하는 간격 (D-57) */
   stopPollMs: number;
@@ -49,7 +49,7 @@ export const DEFAULT_TIMING: Timing = {
   silenceMs: 30_000,
   healthyMs: 60_000,
   heartbeatMs: 15_000,
-  statusMs: 15_000,
+  statusMs: 5_000,
   stopPollMs: 1_000,
   rulesPollMs: 5_000,
   rulesDebounceMs: 200,
