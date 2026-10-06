@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { basename } from 'node:path';
-import { HOLD_MS, Notifier, WINDOW_MS, createNotifier } from '../../src/notify/index.js';
+import { GAP_MERGE_MS, HOLD_MS, Notifier, WINDOW_MS, createNotifier } from '../../src/notify/index.js';
 import { ConsoleAdapter, SoundAdapter, type NotifyAdapter } from '../../src/notify/adapters.js';
 import { render, clockHM } from '../../src/notify/render.js';
 import { Engine } from '../../src/engine/index.js';
@@ -285,7 +285,7 @@ describe('notify 이벤트 연동', () => {
     bus.emit({ type: 'conn.status', ts: iso(T0), stream: 'spot', state: 'retrying', attempt: 12 });
     bus.emit({ type: 'conn.status', ts: iso(T0), stream: 'futures', state: 'open', attempt: 0 });
     bus.emit({ type: 'conn.gap', ts: iso(T0), from: iso(T0 - 5 * 60_000), to: iso(T0), reason: 'disconnect', ongoing: true });
-    await tick(0);
+    await tick(GAP_MERGE_MS);
     expect(desktop.all).toHaveLength(1);
     expect(desktop.all[0]).toMatchObject({ kind: 'warn', titleKey: 'alert.conn.down.title', params: { minutes: 5, attempt: 12 } });
     expect(render(desktop.all[0]!)).toEqual({ title: '바이낸스 연결 끊김 5분', body: '재연결 시도 중 (12회)' });
@@ -297,13 +297,65 @@ describe('notify 이벤트 연동', () => {
     notifier.attach(bus);
     const from = T0 - 45 * 60_000;
     bus.emit({ type: 'conn.gap', ts: iso(T0), from: iso(from), to: iso(T0), reason: 'sleep' });
-    bus.emit({ type: 'conn.gap', ts: iso(T0), from: iso(from), to: iso(T0), reason: 'disconnect' });
-    await tick(0);
-    expect(desktop.all).toHaveLength(2); // warn은 묶지 않는다
+    await tick(GAP_MERGE_MS);
+    expect(desktop.all).toHaveLength(1);
     expect(render(desktop.all[0]!)).toEqual({
       title: '감시 중단 구간 있음',
       body: `${clockHM(from)} ~ ${clockHM(T0)} 동안 감시하지 못함`,
     });
+  });
+});
+
+describe('notify 중단 구간 합치기 (NFR-REL-02)', () => {
+  const gap = (bus: EventBus, from: number, to: number, ongoing = false) =>
+    bus.emit({ type: 'conn.gap', ts: iso(to), from: iso(from), to: iso(to), reason: 'disconnect', ...(ongoing ? { ongoing: true } : {}) });
+
+  it('AC-21 한 번의 끊김을 현물·선물·계정 연결이 따로 보고해도 알림과 소리는 한 번이고, 가장 이른 시작~가장 늦은 끝을 담는다', async () => {
+    const { notifier, desktop, played } = setup();
+    const bus = new EventBus();
+    notifier.attach(bus);
+    gap(bus, T0 - 16_000, T0); // spot
+    await tick(55);
+    gap(bus, T0 - 15_990, T0 + 55); // futures
+    await tick(140);
+    gap(bus, T0 - 15_980, T0 + 195); // futures-account
+    await tick(GAP_MERGE_MS);
+    expect(desktop.all).toHaveLength(1);
+    expect(played).toHaveLength(1);
+    expect(desktop.all[0]).toMatchObject({ kind: 'warn', titleKey: 'alert.gap.title' });
+    expect(desktop.all[0]!.params).toEqual({ from: clockHM(T0 - 16_000), to: clockHM(T0 + 195) });
+  });
+
+  it('합치는 시간이 지난 뒤의 새 끊김은 따로 알린다', async () => {
+    const { notifier, desktop } = setup();
+    const bus = new EventBus();
+    notifier.attach(bus);
+    gap(bus, T0 - 60_000, T0);
+    await tick(GAP_MERGE_MS);
+    gap(bus, T0 + 10 * 60_000, T0 + 11 * 60_000);
+    await tick(GAP_MERGE_MS);
+    expect(desktop.all).toHaveLength(2);
+  });
+
+  it('5분 넘게 이어지는 끊김 경고(ongoing)도 연결마다 중복되지 않고, 끝난 구간 알림과는 따로 나간다', async () => {
+    const { notifier, desktop } = setup();
+    const bus = new EventBus();
+    notifier.attach(bus);
+    for (let i = 0; i < 3; i++) gap(bus, T0 - 5 * 60_000 - i, T0, true);
+    gap(bus, T0 - 60_000, T0);
+    await tick(GAP_MERGE_MS);
+    expect(desktop.all.map((a) => a.titleKey).sort()).toEqual(['alert.conn.down.title', 'alert.gap.title']);
+  });
+
+  it('종료할 때(flush) 합치는 중인 구간 알림도 잃지 않고 보낸다', async () => {
+    const { notifier, desktop } = setup();
+    const bus = new EventBus();
+    notifier.attach(bus);
+    gap(bus, T0 - 60_000, T0);
+    await notifier.flush();
+    expect(desktop.all).toHaveLength(1);
+    await tick(GAP_MERGE_MS * 2);
+    expect(desktop.all).toHaveLength(1); // 타이머가 남아 두 번 나가지 않는다
   });
 });
 
@@ -314,7 +366,7 @@ describe('notify 중단 구간 표기', () => {
     notifier.attach(bus);
     const from = T0 - 30 * 3_600_000;
     bus.emit({ type: 'conn.gap', ts: iso(T0), from: iso(from), to: iso(T0), reason: 'exit' });
-    await tick(0);
+    await tick(GAP_MERGE_MS);
     const f = new Date(from);
     const t = new Date(T0);
     expect(render(desktop.all[0]!).body).toBe(

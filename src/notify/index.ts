@@ -20,6 +20,12 @@ const LOG = 'notify';
 export const HOLD_MS = 300;
 /** B7: 10초 창 안에 여러 건이 발동하면 묶는다 */
 export const WINDOW_MS = 10_000;
+/**
+ * 감시 중단 구간 알림을 합치는 시간. 같은 끊김이 공개 스트림(현물·선물)과 계정 연결에서 각각 보고되므로,
+ * 이 시간 안에 들어온 구간은 가장 이른 시작부터 가장 늦은 끝까지의 알림 한 건으로 보낸다 (NFR-REL-02).
+ * 연결마다 복구 시각이 수백 ms씩 달라서 한 번의 끊김에 같은 경고가 3번, 소리도 겹쳐 3번 나던 문제를 막는다.
+ */
+export const GAP_MERGE_MS = 1_500;
 const SUMMARY_MIN = 3;
 const SUMMARY_TOP = 3;
 
@@ -34,6 +40,7 @@ export interface NotifierOptions {
   platform?: NodeJS.Platform;
   holdMs?: number;
   windowMs?: number;
+  gapMergeMs?: number;
 }
 
 /**
@@ -52,11 +59,15 @@ export class Notifier {
   private clock: Clock;
   private holdMs: number;
   private windowMs: number;
+  private gapMergeMs: number;
+  /** 합치는 중인 감시 중단 구간. 끝난 구간과 아직 이어지는 구간(ongoing)을 따로 모은다 */
+  private gaps = new Map<boolean, { from: number; to: number; timer: ReturnType<typeof setTimeout> }>();
 
   constructor(private opts: NotifierOptions) {
     this.clock = opts.clock ?? systemClock;
     this.holdMs = opts.holdMs ?? HOLD_MS;
     this.windowMs = opts.windowMs ?? WINDOW_MS;
+    this.gapMergeMs = opts.gapMergeMs ?? GAP_MERGE_MS;
   }
 
   /** 버스에서 발동 알림과 연결 끊김·감시 중단을 받아 내보낸다. 반환값은 연결 해제 함수. */
@@ -64,7 +75,7 @@ export class Notifier {
     const offs = [
       bus.on('rule.fired', (e) => this.notify(e.alert)),
       bus.on('conn.status', (e) => void this.status.set(e.stream, { state: e.state, attempt: e.attempt })),
-      bus.on('conn.gap', (e) => this.notify(this.gapAlert(e))),
+      bus.on('conn.gap', (e) => this.mergeGap(e)),
       bus.on('key.denied', (e) => this.notify(this.keyAlert(e))),
     ];
     return () => offs.forEach((off) => off());
@@ -101,6 +112,7 @@ export class Notifier {
 
   /** 모아 둔 알림을 지금 보내고 진행 중인 전송이 끝나기를 기다린다 (종료·테스트용) */
   async flush(): Promise<void> {
+    for (const ongoing of [...this.gaps.keys()]) this.releaseGap(ongoing);
     clearTimeout(this.timer);
     this.timer = undefined;
     this.track(this.release());
@@ -164,6 +176,30 @@ export class Notifier {
   /** 키 때문에 계정 기능을 쓸 수 없을 때. 공개 알림은 계속된다는 것까지 알린다 (FR-KEY-02, FR-KEY-04, D-30) */
   private keyAlert(e: { reason: string; fields?: string[]; ts: string }): Alert {
     return { ruleId: 0, kind: 'warn', titleKey: `alert.key.${e.reason}.title`, params: { fields: (e.fields ?? []).join(', ') }, firedAt: e.ts };
+  }
+
+  /** 같은 끊김을 여러 연결이 따로 보고하므로, 짧은 시간 안의 중단 구간은 하나로 합친다 */
+  private mergeGap(e: { from: string; to: string; ongoing?: boolean }): void {
+    const key = e.ongoing === true;
+    const from = Date.parse(e.from);
+    const to = Date.parse(e.to);
+    const current = this.gaps.get(key);
+    if (current) {
+      current.from = Math.min(current.from, from);
+      current.to = Math.max(current.to, to);
+      return;
+    }
+    const timer = setTimeout(() => this.releaseGap(key), this.gapMergeMs);
+    timer.unref?.();
+    this.gaps.set(key, { from, to, timer });
+  }
+
+  private releaseGap(ongoing: boolean): void {
+    const g = this.gaps.get(ongoing);
+    if (!g) return;
+    clearTimeout(g.timer);
+    this.gaps.delete(ongoing);
+    this.notify(this.gapAlert({ from: iso(g.from), to: iso(g.to), ongoing }));
   }
 
   private gapAlert(e: { from: string; to: string; ongoing?: boolean }): Alert {
