@@ -28,7 +28,7 @@ export interface NotifierPort {
 export interface Runner {
   run(opts: { verbose: boolean }): Promise<number>;
   /** 데몬 안에서 도는 감시 (숨김 명령 daemon-run, v0.4) */
-  daemon(opts: { verbose: boolean }): Promise<number>;
+  daemon(opts: { verbose: boolean; service: boolean }): Promise<number>;
 }
 
 /**
@@ -37,11 +37,32 @@ export interface Runner {
  */
 export interface DaemonPort {
   /** 같은 실행 파일을 숨김 명령으로 분리 실행한다. exit는 자식이 끝나면 종료 코드로 이행한다 (분리한 뒤에는 의미 없음) */
-  launch(): { pid: number; exit: Promise<number>; detach(): void };
+  launch(opts?: { service?: boolean }): { pid: number; exit: Promise<number>; detach(): void };
   /** 프로세스를 강제 종료한다 */
   kill(pid: number): void;
   now(): number;
   sleep(ms: number): Promise<void>;
+}
+
+/**
+ * OS 서비스(로그인 시 자동 시작) 등록 기능 (v0.5, D-62~D-66). cli는 child_process를 직접 쓰지 않고
+ * 진입점에서 연결한 구현을 쓴다. 테스트는 가짜를 넣는다.
+ */
+export interface ServicePort {
+  /** 이 OS에서 등록을 지원하는가. v0.5는 Windows만 (D-63) */
+  supported: boolean;
+  /** 지금 실행 중인 node 실행 파일과 index.js의 절대 경로 (D-65) */
+  nodePath: string;
+  scriptPath: string;
+  fileExists(path: string): boolean;
+  /** 작업 소유자 (예: DOMAIN\user) */
+  currentUser(): Promise<string>;
+  /** 작업을 만들거나 같은 이름으로 덮어쓴다 */
+  register(xml: string): Promise<{ ok: true } | { ok: false; detail: string }>;
+  /** 작업을 지운다. existed는 원래 있었는지 */
+  unregister(): Promise<{ ok: true; existed: boolean } | { ok: false; detail: string }>;
+  /** 등록된 작업의 실행 명령과 인자. 없으면 undefined */
+  query(): Promise<{ command: string; args: string } | undefined>;
 }
 
 export interface Deps {
@@ -55,6 +76,8 @@ export interface Deps {
   network: NetworkMode;
   /** 데몬 시작·종료·대기 (v0.4) */
   daemon: DaemonPort;
+  /** 로그인 시 자동 시작 등록 (v0.5) */
+  service: ServicePort;
   /** 호출하면 Ctrl+C에 중단되는 신호를 돌려준다 (blert logs -f). 호출한 때부터 Ctrl+C를 가로챈다 */
   interrupt: () => AbortSignal;
   io: Io;

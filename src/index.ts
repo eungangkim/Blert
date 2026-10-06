@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { createInterface, type Interface } from 'node:readline';
 import { runCli } from './cli/index.js';
 import type { DaemonPort, Deps, Io } from './cli/index.js';
+import { createServicePort } from './service-win.js';
 import { createPresetService } from './presets/index.js';
 import { createNotifier } from './notify/index.js';
 import { createRunner } from './runtime/index.js';
@@ -79,10 +80,10 @@ const runner = createRunner({
 
 /** 같은 실행 파일을 숨김 명령(daemon-run)으로 분리 실행한다 (D-54). 표준 출력·오류는 로그 폴더의 daemon.err로 보낸다. */
 const daemon: DaemonPort = {
-  launch() {
+  launch(o) {
     mkdirSync(store.logsDir, { recursive: true });
     const fd = openSync(join(store.logsDir, 'daemon.err'), 'w'); // 시작할 때마다 비운다 (비정상 종료 때 남은 오류 출력만 담는다)
-    const child = spawn(process.execPath, [...process.execArgv, process.argv[1]!, 'daemon-run'], {
+    const child = spawn(process.execPath, [...process.execArgv, process.argv[1]!, 'daemon-run', ...(o?.service ? ['--service'] : [])], {
       detached: true,
       windowsHide: true,
       stdio: ['ignore', fd, fd],
@@ -111,7 +112,8 @@ const interrupt = (): AbortSignal => {
   process.once('SIGINT', () => ac.abort());
   return ac.signal;
 };
-const deps: Deps = { store, presets: createPresetService(store), notifier, runner, keys, network, daemon, interrupt, io };
+const service = createServicePort();
+const deps: Deps = { store, presets: createPresetService(store), notifier, runner, keys, network, daemon, service, interrupt, io };
 const code = await runCli(process.argv.slice(2), deps);
 io.close();
 process.exitCode = code;

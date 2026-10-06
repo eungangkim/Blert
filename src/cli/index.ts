@@ -13,14 +13,15 @@ import { runCommand } from './run.js';
 import { keyCommand } from './key.js';
 import { daemonRunCommand, startCommand, statusCommand, stopCommand } from './daemon.js';
 import { logsCommand } from './logs.js';
+import { serviceCommand } from './service.js';
 import { formatLocalDateTime } from './format.js';
 import { RUN_LOCK_STALE_MS } from '../shared/defaults.js';
 import type { Command, Deps } from './types.js';
 
-export type { Deps, Io, PresetService, NotifierPort, Runner, DaemonPort, Command } from './types.js';
+export type { Deps, Io, PresetService, NotifierPort, Runner, DaemonPort, ServicePort, Command } from './types.js';
 
 /** 명령 레지스트리. 도움말과 오타 제안이 이 목록을 쓴다. */
-export const defaultCommands: Command[] = [initCommand, addCommand, listCommand, delCommand, pauseCommand, resumeCommand, presetCommand, soundCommand, testCommand, runCommand, startCommand, stopCommand, statusCommand, logsCommand, keyCommand, daemonRunCommand];
+export const defaultCommands: Command[] = [initCommand, addCommand, listCommand, delCommand, pauseCommand, resumeCommand, presetCommand, soundCommand, testCommand, runCommand, startCommand, stopCommand, statusCommand, logsCommand, serviceCommand, keyCommand, daemonRunCommand];
 
 /** 이 명령들은 직접 실행 상태를 다루므로 죽은 데몬 경고를 따로 하지 않는다 */
 const NO_DAEMON_WARNING = ['start', 'stop', 'status', 'run', 'daemon-run'];

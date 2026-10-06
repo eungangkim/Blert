@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runCli, type DaemonPort, type Deps, type NotifierPort, type PresetService, type Runner } from '../../src/cli/index.js';
+import { runCli, type DaemonPort, type Deps, type NotifierPort, type PresetService, type Runner, type ServicePort } from '../../src/cli/index.js';
 import { createPresetService } from '../../src/presets/index.js';
 import { createKeyService } from '../../src/security/index.js';
 import type { NetworkMode } from '../../src/shared/network.js';
@@ -25,11 +25,29 @@ export interface DaemonSim {
   /** logs -f를 끝내는 신호 */
   abort: AbortController;
   sleeps: number;
+  /** 마지막 launch가 --service였는가 */
+  lastLaunchService?: boolean;
+}
+
+/** 작업 스케줄러 대신 쓰는 가짜 (v0.5). 등록한 XML에서 실행 명령을 꺼내 조회에 돌려준다 */
+export interface ServiceSim {
+  supported: boolean;
+  nodePath: string;
+  scriptPath: string;
+  /** 존재하는 파일 */
+  files: Set<string>;
+  /** 등록된 작업 */
+  task?: { xml: string; command: string; args: string };
+  registerCalls: number;
+  failRegister?: string;
+  failUnregister?: string;
 }
 
 export interface Harness {
   /** 데몬 시뮬레이션 (v0.4) */
   sim: DaemonSim;
+  /** 자동 시작 등록 시뮬레이션 (v0.5) */
+  svc: ServiceSim;
   deps: Deps;
   /** 설정 폴더(임시). 키 PEM 같은 입력 파일도 여기에 만든다 */
   dir: string;
@@ -91,15 +109,54 @@ export async function makeHarness(
       calls.push(`run:${verbose}`);
       return runCode.value;
     },
-    daemon: async ({ verbose }) => {
-      calls.push(`daemon:${verbose}`);
+    daemon: async ({ verbose, service }) => {
+      calls.push(`daemon:${verbose}:${service}`);
       return runCode.value;
     },
   };
   const sim: DaemonSim = { nowMs: Date.UTC(2026, 10, 1, 12, 0, 0), pid: process.pid, launches: 0, detached: false, kills: [], abort: new AbortController(), sleeps: 0 };
+  const svc: ServiceSim = {
+    supported: true,
+    nodePath: 'C:\\node\\node.exe',
+    scriptPath: 'C:\\blert\\dist\\index.js',
+    files: new Set(['C:\\node\\node.exe', 'C:\\blert\\dist\\index.js']),
+    registerCalls: 0,
+  };
+  const unescape = (s: string) => s.replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  const service: ServicePort = {
+    get supported() {
+      return svc.supported;
+    },
+    get nodePath() {
+      return svc.nodePath;
+    },
+    get scriptPath() {
+      return svc.scriptPath;
+    },
+    fileExists: (p) => svc.files.has(p),
+    currentUser: async () => 'PC\\user',
+    register: async (xml) => {
+      svc.registerCalls++;
+      if (svc.failRegister) return { ok: false, detail: svc.failRegister };
+      svc.task = {
+        xml,
+        command: unescape(/<Command>([\s\S]*?)<\/Command>/.exec(xml)![1]!),
+        args: unescape(/<Arguments>([\s\S]*?)<\/Arguments>/.exec(xml)![1]!),
+      };
+      return { ok: true };
+    },
+    unregister: async () => {
+      if (svc.failUnregister) return { ok: false, detail: svc.failUnregister };
+      const existed = svc.task !== undefined;
+      svc.task = undefined;
+      return { ok: true, existed };
+    },
+    query: async () => (svc.task ? { command: svc.task.command, args: svc.task.args } : undefined),
+  };
   const daemon: DaemonPort = {
-    launch: () => {
+    launch: (o) => {
       sim.launches++;
+      sim.lastLaunchService = o?.service === true;
       let resolve!: (code: number) => void;
       const exit = new Promise<number>((r) => (resolve = r));
       sim.finish = resolve;
@@ -133,6 +190,7 @@ export async function makeHarness(
     keys,
     network,
     daemon,
+    service,
     interrupt: () => sim.abort.signal,
     presets: presets === 'real' ? createPresetService(store) : presets,
     io: {
@@ -146,6 +204,7 @@ export async function makeHarness(
   };
   return {
     sim,
+    svc,
     deps,
     dir,
     keychain,

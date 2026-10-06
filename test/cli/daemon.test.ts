@@ -308,7 +308,7 @@ describe('cli 숨김 명령과 옵션', () => {
     await h.run('daemn');
     expect(h.err.join('\n')).not.toContain('daemon-run');
     expect(await h.run('daemon-run')).toBe(0);
-    expect(h.calls).toContain('daemon:false');
+    expect(h.calls).toContain('daemon:false:false');
   });
 
   it('logs의 옵션은 logs에서만 허용된다', async () => {

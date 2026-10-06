@@ -193,6 +193,35 @@ describe('runtime 데몬 실행 (FR-RUN-03, D-54~D-58)', () => {
   });
 });
 
+describe('runtime 서비스(자동 시작) 모드 (D-67)', () => {
+  it('AC-57 서비스로 시작했을 때 네트워크가 없어도 종료하지 않고 감시 못 하는 규칙을 알린 뒤 계속 재시도하고, 연결되면 복구를 알린다', async () => {
+    const h = await setup([price('BTCUSDT', 70000)], { service: true });
+    h.net.refuse = true; // 로그인 직후 네트워크가 아직 없는 상황
+    const done = h.rt.runDaemon();
+    await waitFor(async () => (await h.store.readStatus())?.state === 'ready'); // 시작에 실패하지 않고 준비 완료 상태가 된다
+    expect(await h.store.readRunLock()).toMatchObject({ mode: 'daemon' });
+    await waitFor(async () => (await h.logText()).includes('현물 연결 실패'));
+    expect(await h.logText()).toContain('알림 1개를 지금은 감시하지 못합니다');
+    expect((await h.store.readStatus())?.failure).toBeUndefined();
+
+    h.net.refuse = false; // 네트워크가 붙는다
+    await waitFor(async () => (await h.logText()).includes('현물 연결 복구'), 8000);
+    expect(await h.logText()).toContain('알림 감시를 다시 시작했습니다');
+    h.net.push('btcusdt@miniTicker', miniTicker('BTCUSDT', 69_000));
+    h.net.push('btcusdt@miniTicker', miniTicker('BTCUSDT', 70_010));
+    await waitFor(async () => (await h.logText()).includes('BTC 70,000 돌파')); // 복구 뒤 감시가 실제로 동작한다
+    await h.store.requestStop(T0);
+    expect(await done).toBe(0);
+  }, 20000);
+
+  it('AC-57 서비스가 아니면(사용자가 직접 start) 같은 상황에서 시작 실패로 알리고 종료 코드 3으로 끝난다', async () => {
+    const h = await setup([price('BTCUSDT', 70000)]);
+    h.net.refuse = true;
+    expect(await h.rt.runDaemon()).toBe(3);
+    expect((await h.store.readStatus())?.failure?.exitCode).toBe(3);
+  });
+});
+
 describe('runtime 규칙 변경 반영 (D-56)', () => {
   it('AC-46 데몬 실행 중 다른 터미널이 규칙을 추가하면 재시작 없이 새 규칙이 반영된다', async () => {
     const h = await setup([price('BTCUSDT', 70000)]);

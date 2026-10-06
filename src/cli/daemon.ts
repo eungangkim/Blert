@@ -3,6 +3,7 @@ import { RUN_LOCK_STALE_MS } from '../shared/defaults.js';
 import { pidAlive, type PidFile, type StatusFile } from '../store/index.js';
 import { t } from '../i18n/index.js';
 import { formatLocalDateTime } from './format.js';
+import { serviceStatusLine } from './service.js';
 import type { Command, Ctx } from './types.js';
 
 /** `start`가 데몬의 준비 완료를 기다리는 시간 (D-58)과 `stop`이 정상 종료를 기다리는 시간 (D-57) */
@@ -20,9 +21,9 @@ export const daemonRunCommand: Command = {
   name: 'daemon-run',
   hidden: true,
   usageKeys: [],
-  allowedOptions: [],
+  allowedOptions: ['service'],
   async run({ args, deps }: Ctx) {
-    return deps.runner.daemon({ verbose: args.flags.has('verbose') });
+    return deps.runner.daemon({ verbose: args.flags.has('verbose'), service: args.flags.has('service') });
   },
 };
 
@@ -30,15 +31,17 @@ export const daemonRunCommand: Command = {
 export const startCommand: Command = {
   name: 'start',
   usageKeys: ['usage.start'],
-  allowedOptions: [],
-  async run({ rest, deps }: Ctx) {
+  allowedOptions: ['service'], // --service는 자동 시작 작업이 쓰는 숨김 옵션이다 (D-67)
+  async run({ rest, args, deps }: Ctx) {
     noArgs('start', rest);
     const { store, daemon, io } = deps;
+    const service = args.flags.has('service');
     const lock = await store.inspectRunLock(daemon.now(), RUN_LOCK_STALE_MS);
+    if (lock.state === 'running' && service) return 0; // 서비스 시작은 이미 실행 중이면 조용히 끝난다 (D-68)
     if (lock.state === 'running') throw new BlertError(lock.file.mode === 'daemon' ? 'err.runAlreadyDaemon' : 'err.runAlready', { pid: lock.file.pid });
 
     io.out(t('start.waiting'));
-    const child = daemon.launch();
+    const child = daemon.launch({ service });
     let exited: number | undefined;
     void child.exit.then((code) => {
       exited = code;
@@ -151,19 +154,13 @@ export const statusCommand: Command = {
     noArgs('status', rest);
     const { store, daemon, io } = deps;
     const lock = await store.inspectRunLock(daemon.now(), RUN_LOCK_STALE_MS);
-    if (lock.state === 'none') {
-      io.out(t('status.none'));
-      return 0;
-    }
-    if (lock.state === 'stale') {
-      io.out(t('status.crashed', { alive: formatLocalDateTime(Date.parse(lock.file.heartbeatAt)), mode: t(`status.mode.${lock.file.mode ?? 'foreground'}`) }));
-      return 0;
-    }
-    if (lock.file.mode !== 'daemon') {
-      io.out(t('status.foreground', { pid: lock.file.pid }));
-      return 0;
-    }
-    io.out(describeStatus(lock.file, await store.readStatus()).join('\n'));
+    if (lock.state === 'none') io.out(t('status.none'));
+    else if (lock.state === 'stale') io.out(t('status.crashed', { alive: formatLocalDateTime(Date.parse(lock.file.heartbeatAt)), mode: t(`status.mode.${lock.file.mode ?? 'foreground'}`) }));
+    else if (lock.file.mode !== 'daemon') io.out(t('status.foreground', { pid: lock.file.pid }));
+    else io.out(describeStatus(lock.file, await store.readStatus()).join('\n'));
+    // 자동 시작 등록 여부 한 줄 (D-66)
+    const line = await serviceStatusLine(deps.service);
+    if (line) io.out(line);
     return 0;
   },
 };

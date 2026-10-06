@@ -63,8 +63,9 @@ describe('구조 규칙 (B2 모듈 경계)', () => {
     for (const f of files(SRC, /\.ts$/)) {
       for (const m of readFileSync(f, 'utf8').matchAll(/\b(?:https?|wss?):\/\/([a-z0-9.-]+)/gi)) hosts.add(m[1]!.toLowerCase());
     }
-    // 주석의 문서 링크(developers.binance.com, kenney.nl 등)는 코드가 아니라 참고용이다
-    const runtimeHosts = [...hosts].filter((h) => !/^(developers\.binance\.com|kenney\.nl|creativecommons\.org|github\.com)$/.test(h));
+    // 주석의 문서 링크(developers.binance.com, kenney.nl, learn.microsoft.com 등)와 작업 정의 XML의 네임스페이스 식별자(schemas.microsoft.com)는
+    // 네트워크 요청이 아니다. 아래 목록은 실제로 요청을 보내는 주소만 남긴다.
+    const runtimeHosts = [...hosts].filter((h) => !/^(developers\.binance\.com|kenney\.nl|creativecommons\.org|github\.com|learn\.microsoft\.com|schemas\.microsoft\.com)$/.test(h));
     // 실서버 5곳과, BLERT_NETWORK=testnet 에서만 허용되는 테스트넷 4곳(현물 2, 선물 데모 2, shared/network.ts)
     expect(runtimeHosts.sort()).toEqual([
       'api.binance.com', 'demo-fapi.binance.com', 'demo-fstream.binance.com', 'fapi.binance.com', 'fstream.binance.com', 'stream.binance.com', 'testnet.binance.vision', 'ws-api.binance.com', 'ws-api.testnet.binance.vision',
@@ -104,17 +105,17 @@ describe('패키지 규칙 (NFR-SEC-03, NFR-COMP-02)', () => {
 describe('수용 기준 커버리지 (CLAUDE.md 테스트 규칙)', () => {
   const names = files(join(ROOT, 'test'), /\.test\.ts$/).flatMap((f) => [...readFileSync(f, 'utf8').matchAll(/\bit\('(AC-\d{2})[ ,]/g)].map((m) => m[1]!));
 
-  it('AC-01 ~ AC-24와 AC-26 ~ AC-50은 이름이 해당 ID로 시작하는 자동 테스트가 하나 이상 있다 (AC-25, AC-51은 수동)', () => {
+  it('AC-01 ~ AC-24와 AC-26 ~ AC-59는 이름이 해당 ID로 시작하는 자동 테스트가 하나 이상 있다 (AC-25, AC-51, AC-60은 수동)', () => {
     // 아직 구현하지 않은 항목. 구현하면 여기서 지운다 (마지막 단계에서 비어 있어야 한다).
     const PENDING: string[] = [];
-    const ids = Array.from({ length: 51 }, (_, i) => i + 1)
-      .filter((n) => n !== 25 && n !== 51)
+    const ids = Array.from({ length: 60 }, (_, i) => i + 1)
+      .filter((n) => n !== 25 && n !== 51 && n !== 60)
       .map((n) => `AC-${String(n).padStart(2, '0')}`)
       .filter((id) => !PENDING.includes(id));
     expect(ids.filter((id) => !names.includes(id))).toEqual([]);
   });
 
-  it('현재 목표(v0.4)를 넘는 수용 기준(AC-52 이상) 테스트는 없다', () => {
-    expect(names.filter((n) => Number(n.slice(3)) > 51)).toEqual([]);
+  it('현재 목표(v0.5)를 넘는 수용 기준(AC-61 이상) 테스트는 없다', () => {
+    expect(names.filter((n) => Number(n.slice(3)) > 60)).toEqual([]);
   });
 });

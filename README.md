@@ -101,6 +101,20 @@ blert stop           # 상태를 저장하고 정상 종료
 - `blert run`과 `blert start`는 동시에 실행할 수 없습니다. 이미 실행 중이면 `blert status`를 안내합니다.
 - 컴퓨터를 재부팅하면 데몬도 꺼집니다(부팅 시 자동 시작은 이후 버전의 기능입니다).
 
+### 로그인할 때 자동으로 시작 (Windows)
+
+```bash
+blert service install     # 로그인한 뒤 30초 뒤에 데몬이 자동으로 켜지도록 등록 (확인 질문이 나옵니다)
+blert service uninstall   # 해제 (실행 중인 데몬은 그대로 둡니다)
+blert status              # 마지막 줄에 자동 시작 등록 여부가 나옵니다
+```
+
+- Windows **작업 스케줄러**에 현재 사용자의 로그온 작업(`blert`)을 만듭니다. **관리자 권한이 필요하지 않습니다.**
+- 알림·소리·OS 키체인은 로그인한 사용자 세션이 있어야 해서, 컴퓨터를 켠 직후가 아니라 **로그인할 때** 시작합니다.
+- 로그인 직후 네트워크가 아직 없어도 데몬은 끝나지 않고 계속 재시도하며, 연결되면 알려 줍니다. 이미 실행 중이면 조용히 넘어갑니다.
+- 등록할 때 현재 실행 중인 `node`와 `blert`의 경로를 기록합니다. 업데이트하거나 폴더를 옮겨 경로가 바뀌면 `blert status`가 알려 주니 `blert service install`을 다시 실행하세요. `npx`로 실행한 임시 경로에서는 등록할 수 없으니 전역 설치(`npm install -g blert`)를 쓰세요.
+- macOS와 Linux는 아직 지원하지 않습니다(`blert start`를 직접 실행하세요).
+
 ## 저장 위치
 
 Windows `%APPDATA%\blert\`, macOS·Linux `~/.config/blert/` — `config.json`, `rules.json`, `state.json`, `logs/`.

@@ -74,6 +74,8 @@ export interface RuntimeOptions {
   makeNotifier: (logger: Logger, mode: RunMode) => Notifier;
   /** 실행 모드. 기본은 foreground. 데몬은 상태 파일을 쓰고 종료 요청 파일을 확인한다 (v0.4) */
   mode?: RunMode;
+  /** 자동 시작(서비스)으로 띄운 데몬: 시작할 때 연결하지 못해도 종료하지 않고 계속 재시도한다 (D-67) */
+  service?: boolean;
   verbose?: boolean;
   clock?: Clock;
   timing?: Partial<Timing>;
@@ -241,7 +243,7 @@ export class Runtime {
     }
 
     const failed = await this.waitOpen();
-    if (failed.length > 0 && failed.length >= this.neededMarkets().length) {
+    if (failed.length > 0 && failed.length >= this.neededMarkets().length && !this.o.service) {
       this.logger.error(LOG, `could not connect: ${failed.join(', ')}`);
       return { ok: false, failedMarkets: failed };
     }
@@ -700,10 +702,10 @@ export class Runtime {
 export interface RunnerDeps extends Omit<RuntimeOptions, 'verbose'> {}
 
 /** cli의 `run` 명령이 부르는 진입점 (cli는 runtime을 직접 알 수 없어 포트로 연결한다, B2) */
-export function createRunner(deps: RunnerDeps): { run(opts: { verbose: boolean }): Promise<number>; daemon(opts: { verbose: boolean }): Promise<number> } {
+export function createRunner(deps: RunnerDeps): { run(opts: { verbose: boolean }): Promise<number>; daemon(opts: { verbose: boolean; service: boolean }): Promise<number> } {
   return {
     run: ({ verbose }) => new Runtime({ ...deps, verbose, mode: 'foreground' }).runForeground(),
     // 데몬에는 터미널이 없다. 화면 출력은 버리고 로그와 상태 파일로만 남긴다 (D-54, D-55)
-    daemon: ({ verbose }) => new Runtime({ ...deps, verbose, mode: 'daemon', io: { out: () => {}, err: () => {} } }).runDaemon(),
+    daemon: ({ verbose, service }) => new Runtime({ ...deps, verbose, mode: 'daemon', service, io: { out: () => {}, err: () => {} } }).runDaemon(),
   };
 }

@@ -13,7 +13,7 @@ async function askLine(io: Io, question: string): Promise<string> {
 const words = (key: string) => t(key).split(',');
 
 /** 예/아니오 질문. 빈 입력은 기본값, 알 수 없는 입력은 다시 묻는다. */
-async function askYesNo(io: Io, question: string, defaultYes: boolean): Promise<boolean> {
+export async function askYesNo(io: Io, question: string, defaultYes: boolean): Promise<boolean> {
   for (let i = 0; i < MAX_TRIES; i++) {
     const a = (await askLine(io, question)).toLowerCase();
     if (a === '') return defaultYes;
