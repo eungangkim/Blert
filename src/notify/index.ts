@@ -6,10 +6,12 @@ import type { Logger } from '../shared/logger.js';
 import { platformGroup } from '../shared/platform.js';
 import { t } from '../i18n/index.js';
 import { ConsoleAdapter, DesktopAdapter, SoundAdapter, type NotifyAdapter } from './adapters.js';
+import { TelegramAdapter, TelegramClient, type ChannelSource, type TelegramClientOptions } from './telegram.js';
 import type { RunFn } from './proc.js';
-import { gapTimes, render } from './render.js';
+import { gapTimes, render, summarizeAlerts } from './render.js';
 
-export type { NotifyAdapter } from './adapters.js';
+export type { NotifyAdapter, SendContext } from './adapters.js';
+export { TelegramClient, TelegramAdapter, classifyAlert, formatMessage, TELEGRAM_HOSTS, type ChannelSource, type TgResult } from './telegram.js';
 
 const LOG = 'notify';
 /**
@@ -27,7 +29,6 @@ export const WINDOW_MS = 10_000;
  */
 export const GAP_MERGE_MS = 1_500;
 const SUMMARY_MIN = 3;
-const SUMMARY_TOP = 3;
 
 export interface NotifierOptions {
   adapters: NotifyAdapter[];
@@ -133,18 +134,7 @@ export class Notifier {
   }
 
   private summary(batch: Alert[]): Alert {
-    const titles = batch.slice(0, SUMMARY_TOP).map((a) => render(a).title);
-    const more = batch.length - titles.length;
-    const list = [...titles, ...(more > 0 ? [t('alert.batch.more', { count: more })] : [])].join('\n');
-    const first = batch[0]!;
-    return {
-      ruleId: 0,
-      kind: first.kind,
-      titleKey: 'alert.batch.title',
-      params: { count: batch.length, list },
-      firedAt: first.firedAt,
-      ...(first.sound ? { sound: first.sound } : {}),
-    };
+    return summarizeAlerts(batch);
   }
 
   private async deliver(display: Alert[], full: Alert[]): Promise<void> {
@@ -155,7 +145,7 @@ export class Notifier {
     await Promise.allSettled(
       this.opts.adapters.map(async (adapter) => {
         try {
-          await adapter.send(adapter.wantsAll ? full : display);
+          await adapter.send(adapter.wantsAll ? full : display, { summarized: display.length === 1 && display[0]!.titleKey === 'alert.batch.title' });
         } catch (e) {
           this.reportFailure(adapter.name, e);
         }
@@ -167,8 +157,9 @@ export class Notifier {
   private reportFailure(name: string, e: unknown): void {
     const reason = e instanceof Error ? e.message : String(e);
     this.opts.logger?.warn(LOG, `${name} adapter failed: ${reason}`);
-    if (this.warned.has(name) || (name !== 'desktop' && name !== 'sound')) return;
+    if (this.warned.has(name) || (name !== 'desktop' && name !== 'sound' && name !== 'telegram')) return;
     this.warned.add(name);
+    if (name === 'telegram') return this.opts.warn(t('notify.telegramFailed', { reason })); // 토큰이 들어갈 수 있는 값은 reason에 넣지 않는다
     const guide = t(`notify.guide.${name}.${platformGroup(this.opts.platform)}`);
     this.opts.warn(t(`notify.${name}Failed`, { reason, guide }));
   }
@@ -230,6 +221,8 @@ export interface CreateNotifierOptions {
   platform?: NodeJS.Platform;
   run?: RunFn;
   soundDir?: string;
+  /** 외부 알림 채널 (v1.0). 없으면 어댑터를 만들지 않는다. 등록 여부는 보내는 순간 확인한다 (D-69) */
+  channel?: { source: ChannelSource; client?: TelegramClientOptions };
 }
 
 /** 기본 어댑터(콘솔·데스크톱·소리)로 Notifier를 만든다 */
@@ -240,6 +233,7 @@ export function createNotifier(o: CreateNotifierOptions): Notifier {
     ...(o.console === false ? [] : [new ConsoleAdapter(o.out, () => clock.now())]),
     new DesktopAdapter(o.platform, o.run),
     sound,
+    ...(o.channel ? [new TelegramAdapter(o.channel.source, new TelegramClient({ logger: o.logger, ...o.channel.client }))] : []),
   ];
   return new Notifier({ adapters, sound, warn: o.out, clock, logger: o.logger, platform: o.platform });
 }

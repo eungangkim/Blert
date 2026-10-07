@@ -5,11 +5,17 @@ import { runProcess, type RunFn } from './proc.js';
 import { clockHMS, render } from './render.js';
 
 /** 출력 채널 어댑터 (B7). 새 채널(텔레그램 등)은 이 인터페이스를 구현해 추가한다 (FR-NOTI-03). */
+/** 어댑터에 알림을 넘길 때의 부가 정보 */
+export interface SendContext {
+  /** 데스크톱에는 묶음 요약 1건이 나가는 상황인가 (D-28). wantsAll 어댑터가 자기 기준으로 다시 묶을 때 쓴다 */
+  summarized: boolean;
+}
+
 export interface NotifyAdapter {
   name: string;
   /** true면 묶음 요약 대신 개별 알림 전체를 받는다 (요약 시에도 전체는 콘솔에 남긴다, D-28) */
   wantsAll?: boolean;
-  send(alerts: Alert[]): Promise<void>;
+  send(alerts: Alert[], ctx?: SendContext): Promise<void>;
 }
 
 const ICON: Record<SoundKind, string> = { up: '▲', down: '▼', account: '●', warn: '!' };

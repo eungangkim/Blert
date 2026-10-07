@@ -65,6 +65,22 @@ export interface ServicePort {
   query(): Promise<{ command: string; args: string } | undefined>;
 }
 
+/**
+ * 외부 알림 채널(텔레그램) 등록에 필요한 기능 (v1.0, D-69~D-73). cli는 notify를 직접 알 수 없어 cli가 정의하고
+ * 진입점에서 연결한다. 토큰은 키체인에만 두고 이 포트를 통해서만 다룬다.
+ */
+export interface ChannelPort {
+  /** 이 환경에서 OS 키체인을 쓸 수 있는가 (D-30) */
+  keychainAvailable(): Promise<boolean>;
+  /** 봇이 받은 메시지에서 대화를 찾는다 (오래된 것부터) */
+  listChats(token: string): Promise<{ ok: true; chats: { chatId: string; name: string }[] } | { ok: false; reason: 'rejected' | 'network' | 'http' }>;
+  /** 메시지를 보낸다. token을 생략하면 키체인에 저장된 토큰을 쓴다 */
+  send(chatId: string, text: string, token?: string): Promise<{ ok: true } | { ok: false; reason: string }>;
+  saveToken(token: string): Promise<void>;
+  removeToken(): Promise<boolean>;
+  hasToken(): Promise<boolean>;
+}
+
 export interface Deps {
   store: Store;
   presets: PresetService;
@@ -78,6 +94,8 @@ export interface Deps {
   daemon: DaemonPort;
   /** 로그인 시 자동 시작 등록 (v0.5) */
   service: ServicePort;
+  /** 외부 알림 채널 (v1.0) */
+  channel: ChannelPort;
   /** 호출하면 Ctrl+C에 중단되는 신호를 돌려준다 (blert logs -f). 호출한 때부터 Ctrl+C를 가로챈다 */
   interrupt: () => AbortSignal;
   io: Io;

@@ -46,3 +46,21 @@ export function render(alert: Alert): { title: string; body: string } {
   // 견적 통화를 알 수 없는 쌍은 quote가 비어 공백이 겹친다
   return { title: t(alert.titleKey, params).replace(/ {2,}/g, ' ').trim(), body: body === bodyKey ? '' : body.replace(/ {2,}/g, ' ').trim() };
 }
+
+const SUMMARY_TOP = 3;
+
+/** 알림 여러 건을 "알림 N건" 요약 1건으로 합친다 (D-28). 데스크톱과 외부 채널이 같은 방식으로 쓴다. */
+export function summarizeAlerts(batch: Alert[]): Alert {
+  const titles = batch.slice(0, SUMMARY_TOP).map((a) => render(a).title);
+  const more = batch.length - titles.length;
+  const list = [...titles, ...(more > 0 ? [t('alert.batch.more', { count: more })] : [])].join('\n');
+  const first = batch[0]!;
+  return {
+    ruleId: 0,
+    kind: first.kind,
+    titleKey: 'alert.batch.title',
+    params: { count: batch.length, list },
+    firedAt: first.firedAt,
+    ...(first.sound ? { sound: first.sound } : {}),
+  };
+}

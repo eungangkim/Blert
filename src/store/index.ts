@@ -45,6 +45,8 @@ export interface Config {
   presets: { slug: string; version: number }[];
   /** 키체인에 저장한 키의 참조 이름. 키·시크릿은 파일에 저장하지 않는다 (B6) */
   keyRef?: string;
+  /** 외부 알림 채널 (v1.0, D-69~D-72). 토큰은 키체인에만 두고 여기에는 대화 ID와 스위치만 둔다 */
+  channels?: { type: 'telegram'; chatId: string; includeAccount: boolean }[];
 }
 export interface RulesFile {
   schemaVersion: number;

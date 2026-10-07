@@ -6,6 +6,7 @@ import type { Keychain } from './keychain.js';
 import { fetchRestrictions, type Denial, type RestrictionsResult } from './restrictions.js';
 
 export { createNapiKeychain, DEFAULT_KEY_REF, type Keychain } from './keychain.js';
+export { createNapiSecretStore, CHANNEL_SECRET_REF, type SecretStore } from './secret.js';
 export { parseEd25519PrivateKey, signEd25519, credentialsFrom, type Credentials, type StoredKey } from './credentials.js';
 export { evaluateRestrictions, fetchRestrictions, isKeyRejection, ALLOWED_ENABLED, type Denial, type RestrictionsResult } from './restrictions.js';
 

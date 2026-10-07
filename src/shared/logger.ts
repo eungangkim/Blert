@@ -4,9 +4,11 @@ const order: Record<LogLevel, number> = { error: 0, warn: 1, info: 2, debug: 3 }
 // 키 형태 문자열 마스킹 (NFR-SEC-01): PEM 블록, 32자 이상 영숫자·base64 덩어리.
 const PEM = /-----BEGIN [A-Z ]+-----[\s\S]*?-----END [A-Z ]+-----/g;
 const LONG_TOKEN = /[A-Za-z0-9+/_-]{32,}={0,2}/g;
+// 텔레그램 봇 토큰(`123456789:AA...`)은 숫자 부분까지 통째로 가린다 (v1.0, D-71)
+const TELEGRAM_TOKEN = /\d{6,12}:[A-Za-z0-9_-]{30,}/g; // URL 경로(`/bot123456789:...`)에서는 앞에 단어 경계가 없어 \b를 쓰지 않는다
 
 export function mask(text: string): string {
-  return text.replace(PEM, '***').replace(LONG_TOKEN, '***');
+  return text.replace(PEM, '***').replace(TELEGRAM_TOKEN, '***').replace(LONG_TOKEN, '***');
 }
 
 export interface LogSink {

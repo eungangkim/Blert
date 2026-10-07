@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runCli, type DaemonPort, type Deps, type NotifierPort, type PresetService, type Runner, type ServicePort } from '../../src/cli/index.js';
+import { runCli, type DaemonPort, type Deps, type NotifierPort, type PresetService, type Runner, type ServicePort, type ChannelPort } from '../../src/cli/index.js';
 import { createPresetService } from '../../src/presets/index.js';
 import { createKeyService } from '../../src/security/index.js';
 import type { NetworkMode } from '../../src/shared/network.js';
@@ -43,7 +43,21 @@ export interface ServiceSim {
   failUnregister?: string;
 }
 
+/** 텔레그램 대신 쓰는 가짜 (v1.0). 키체인과 봇 API를 흉내 낸다 */
+export interface ChannelSim {
+  keychain: boolean;
+  token?: string;
+  /** listChats가 차례로 돌려줄 대화 목록 (다 쓰면 마지막 것을 계속). 비어 있으면 메시지 없음 */
+  chatPolls: { chatId: string; name: string }[][];
+  listFail?: 'rejected' | 'network' | 'http';
+  listCalls: number;
+  sendFail?: string;
+  sent: { chatId: string; text: string; token: string | undefined }[];
+}
+
 export interface Harness {
+  /** 외부 채널 시뮬레이션 (v1.0) */
+  ch: ChannelSim;
   /** 데몬 시뮬레이션 (v0.4) */
   sim: DaemonSim;
   /** 자동 시작 등록 시뮬레이션 (v0.5) */
@@ -153,6 +167,26 @@ export async function makeHarness(
     },
     query: async () => (svc.task ? { command: svc.task.command, args: svc.task.args } : undefined),
   };
+  const ch: ChannelSim = { keychain: true, chatPolls: [[{ chatId: '777', name: '철수' }]], listCalls: 0, sent: [] };
+  const channel: ChannelPort = {
+    keychainAvailable: async () => ch.keychain,
+    listChats: async () => {
+      const i = Math.min(ch.listCalls++, ch.chatPolls.length - 1);
+      if (ch.listFail) return { ok: false, reason: ch.listFail };
+      return { ok: true, chats: ch.chatPolls[i] ?? [] };
+    },
+    send: async (chatId, text, token) => {
+      ch.sent.push({ chatId, text, token });
+      return ch.sendFail ? { ok: false, reason: ch.sendFail } : { ok: true };
+    },
+    saveToken: async (token) => void (ch.token = token),
+    removeToken: async () => {
+      const had = ch.token !== undefined;
+      ch.token = undefined;
+      return had;
+    },
+    hasToken: async () => ch.token !== undefined,
+  };
   const daemon: DaemonPort = {
     launch: (o) => {
       sim.launches++;
@@ -191,6 +225,7 @@ export async function makeHarness(
     network,
     daemon,
     service,
+    channel,
     interrupt: () => sim.abort.signal,
     presets: presets === 'real' ? createPresetService(store) : presets,
     io: {
@@ -205,6 +240,7 @@ export async function makeHarness(
   return {
     sim,
     svc,
+    ch,
     deps,
     dir,
     keychain,
