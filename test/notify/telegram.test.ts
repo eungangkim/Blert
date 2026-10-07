@@ -109,12 +109,17 @@ describe('notify 텔레그램 클라이언트 (D-70, D-73)', () => {
       { update_id: 1, message: { chat: { id: 111, first_name: '철수' } } },
       { update_id: 2, message: { chat: { id: -100222, title: '가족방' } } },
       { update_id: 3, message: { chat: { id: 111, first_name: '철수' } } },
-      { update_id: 4, edited_message: { chat: { id: 999 } } }, // message가 아닌 업데이트는 무시
+      { update_id: 4, edited_message: { chat: { id: 999, first_name: '영희' } } },
       { update_id: 5, message: { chat: { id: 333, username: 'bob' } } },
+      { update_id: 6, my_chat_member: { chat: { id: -100777, title: '새 그룹' } } }, // 그룹에 봇을 추가한 알림
+      { update_id: 7, poll_answer: { user: { id: 1 } } }, // 대화를 알 수 없는 업데이트는 무시
     ];
     const s = setup({ handler: () => json(200, { ok: true, result: updates }) });
     const r = await s.client.listChats(TOKEN);
-    expect(r).toEqual({ ok: true, value: [{ chatId: '-100222', name: '가족방' }, { chatId: '111', name: '철수' }, { chatId: '333', name: 'bob' }] });
+    expect(r).toEqual({
+      ok: true,
+      value: [{ chatId: '-100222', name: '가족방' }, { chatId: '111', name: '철수' }, { chatId: '999', name: '영희' }, { chatId: '333', name: 'bob' }, { chatId: '-100777', name: '새 그룹' }],
+    });
     expect(s.net.calls[0]!.url).toBe(`https://api.telegram.org/bot${TOKEN}/getUpdates`);
     expect((await setup({ handler: () => json(200, { ok: true, result: [] }) }).client.listChats(TOKEN))).toEqual({ ok: true, value: [] });
     expect(await setup({ handler: () => json(401, { ok: false }) }).client.listChats(TOKEN)).toMatchObject({ ok: false, reason: 'unauthorized' });

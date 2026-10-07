@@ -48,6 +48,7 @@ function createIo(): Io & { close(): void } {
       if (closed) return Promise.resolve(null);
       return new Promise((resolve) => (waiter = resolve));
     },
+    drain: () => void (queue.length = 0),
     close: () => rl?.close(),
   };
 }

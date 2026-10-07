@@ -123,11 +123,38 @@ describe('cli channel add telegram (FR-NOTI-03, D-69~D-72)', () => {
     h = await makeHarness(answers({ useChat: 'n', chatId: '-100200' }));
     expect(await h.run('channel add telegram')).toBe(0);
     expect(h.ch.sent[0]?.chatId).toBe('-100200');
-    const bad = await makeHarness(answers({ useChat: 'n', chatId: 'abc' }));
+    const bad = await makeHarness(['y', TOKEN, 'n', 'da', 'asdaw', 'gsegs']); // 세 번 모두 숫자가 아니면 거부한다
     expect(await bad.run('channel add telegram')).toBe(1);
+    expect(bad.out.filter((l) => l.includes('다시 입력하세요'))).toHaveLength(2);
     expect(bad.err[0]).toContain('숫자여야 합니다');
+    expect(bad.err[0]).toContain('`gsegs`');
     expect(bad.ch.token).toBeUndefined();
+    expect(bad.ch.sent).toEqual([]);
     await bad.cleanup();
+  });
+
+  it('대화 ID를 잘못 입력해도 다시 입력할 수 있다 (최대 3번)', async () => {
+    h = await makeHarness(['y', TOKEN, 'n', 'da', '-100999', 'n']);
+    expect(await h.run('channel add telegram')).toBe(0);
+    expect(h.out.filter((l) => l.includes('다시 입력하세요'))).toHaveLength(1);
+    expect(h.ch.sent[0]?.chatId).toBe('-100999');
+  });
+
+  it('기다리는 동안 터미널에 친 글자는 버리고 다음 질문을 받는다 (잘못 친 글자가 대화 ID 답으로 쓰이던 문제)', async () => {
+    h = await makeHarness(['y', TOKEN, '12345', 'n']);
+    h.ch.chatPolls = [[]]; // 메시지가 오지 않아 시간이 지남
+    expect(await h.run('channel add telegram')).toBe(0);
+    expect(h.drainedAt).toEqual([2]); // 동의·토큰 질문 뒤, 대화 ID 질문 앞에서 한 번 버린다
+    const found = await makeHarness(answers());
+    await found.run('channel add telegram');
+    expect(found.drainedAt).toEqual([2]); // 대화를 찾은 경우에도 확인 질문 앞에서 버린다
+    await found.cleanup();
+  });
+
+  it('안내 문구는 터미널이 아니라 텔레그램 앱에 보내야 한다고 알려 준다', async () => {
+    h = await makeHarness(answers());
+    await h.run('channel add telegram');
+    expect(h.out.join(' ')).toContain('이 터미널이 아니라 텔레그램 앱');
   });
 
   it('시험 메시지를 보내지 못하면 아무것도 저장하지 않는다 (토큰·설정 모두)', async () => {

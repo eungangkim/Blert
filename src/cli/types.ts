@@ -11,6 +11,8 @@ export interface Io {
   err(text: string): void;
   /** 질문을 출력하고 한 줄을 받는다. 입력이 끝났으면 null. */
   ask(question: string): Promise<string | null>;
+  /** 아직 읽지 않고 쌓여 있는 입력을 버린다. 오래 기다리는 동안 터미널에 잘못 친 글자가 다음 질문의 답으로 쓰이지 않게 한다 */
+  drain?(): void;
 }
 
 /**

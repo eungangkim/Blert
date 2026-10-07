@@ -70,8 +70,9 @@ export class TelegramClient {
     if (!r.ok) return r;
     const seen = new Map<string, string>();
     for (const u of Array.isArray(r.value) ? r.value : []) {
-      const msg = (u as { message?: { chat?: { id?: unknown; first_name?: unknown; title?: unknown; username?: unknown } } })?.message;
-      const chat = msg?.chat;
+      // 개인 대화(message)뿐 아니라 수정된 메시지, 채널 글, 그룹에 봇을 추가한 알림(my_chat_member)에서도 대화를 찾는다
+      const up = u as Record<string, { chat?: { id?: unknown; first_name?: unknown; title?: unknown; username?: unknown } } | undefined> | undefined;
+      const chat = (up?.message ?? up?.edited_message ?? up?.channel_post ?? up?.my_chat_member)?.chat;
       if (chat?.id === undefined || (typeof chat.id !== 'number' && typeof chat.id !== 'string')) continue;
       const name = [chat.title, chat.first_name, chat.username].find((v) => typeof v === 'string' && v) as string | undefined;
       seen.delete(String(chat.id)); // 가장 최근 메시지가 뒤로 가게 한다

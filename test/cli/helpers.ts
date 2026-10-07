@@ -80,6 +80,8 @@ export interface Harness {
   out: string[];
   err: string[];
   asked: string[];
+  /** drain이 불린 시점의 질문 수 */
+  drainedAt: number[];
   run(argv: string): Promise<number>;
   cleanup(): Promise<void>;
 }
@@ -106,6 +108,7 @@ export async function makeHarness(
   const out: string[] = [];
   const err: string[] = [];
   const asked: string[] = [];
+  const drainedAt: number[] = [];
   const queue = [...answers];
   const store = new Store(dir);
   const calls: string[] = [];
@@ -231,6 +234,7 @@ export async function makeHarness(
     io: {
       out: (t) => void out.push(t),
       err: (t) => void err.push(t),
+      drain: () => void drainedAt.push(asked.length),
       ask: async (q) => {
         asked.push(q);
         return queue.shift() ?? null;
@@ -255,6 +259,7 @@ export async function makeHarness(
     out,
     err,
     asked,
+    drainedAt,
     run: (argv) => runCli(argv.split(' ').filter(Boolean), deps),
     cleanup: () => rm(dir, { recursive: true, force: true }),
   };

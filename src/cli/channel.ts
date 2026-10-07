@@ -79,8 +79,11 @@ export const channelCommand: Command = {
   },
 };
 
-/** 봇에 보낸 메시지에서 대화 ID를 찾고, 못 찾으면 직접 입력받는다 (D-71) */
-async function findChat(deps: Ctx['deps'], token: string): Promise<string> {
+/** 대화 ID 직접 입력의 최대 시도 횟수 */
+const MAX_CHAT_ID_TRIES = 3;
+
+/** 봇에 보낸 메시지에서 대화를 찾는다. 시간 안에 못 찾으면 undefined (D-71) */
+async function waitForChat(deps: Ctx['deps'], token: string): Promise<{ chatId: string; name: string } | undefined> {
   const { io, channel, daemon } = deps;
   io.out(t('channel.waitMessage', { seconds: CHAT_WAIT_MS / 1000 }));
   const deadline = daemon.now() + CHAT_WAIT_MS;
@@ -89,21 +92,31 @@ async function findChat(deps: Ctx['deps'], token: string): Promise<string> {
     if (!r.ok) {
       if (r.reason === 'rejected') throw new BlertError('err.channelTokenRejected');
       if (r.reason === 'network') throw new BlertError('err.channelNetwork', {}, ExitCode.connection);
-      break; // 그 밖의 응답(웹훅 설정 등)은 직접 입력으로 넘어간다
+      return undefined; // 그 밖의 응답(웹훅 설정 등)은 직접 입력으로 넘어간다
     }
     const latest = r.chats.at(-1);
-    if (latest) {
-      io.out(t('channel.chatFound', { name: latest.name }));
-      if (await askYesNo(io, t('channel.askUseChat'), true)) return latest.chatId;
-      break;
-    }
-    if (daemon.now() >= deadline) {
-      io.out(t('channel.noMessage'));
-      break;
-    }
+    if (latest) return latest;
+    if (daemon.now() >= deadline) return undefined;
     await daemon.sleep(CHAT_POLL_MS);
   }
-  const manual = await askLine(io, t('channel.promptChatId'));
-  if (!CHAT_ID_FORMAT.test(manual)) throw new BlertError('err.channelChatId', { value: manual });
-  return manual;
+}
+
+/** 봇에 보낸 메시지에서 대화 ID를 찾고, 못 찾으면 직접 입력받는다 (D-71) */
+async function findChat(deps: Ctx['deps'], token: string): Promise<string> {
+  const { io } = deps;
+  const found = await waitForChat(deps, token);
+  io.drain?.(); // 기다리는 동안 터미널에 친 글자가 다음 질문의 답으로 쓰이지 않게 버린다
+  if (found) {
+    io.out(t('channel.chatFound', { name: found.name }));
+    if (await askYesNo(io, t('channel.askUseChat'), true)) return found.chatId;
+  } else {
+    io.out(t('channel.noMessage'));
+  }
+  let last = '';
+  for (let i = 0; i < MAX_CHAT_ID_TRIES; i++) {
+    last = await askLine(io, t('channel.promptChatId'));
+    if (CHAT_ID_FORMAT.test(last)) return last;
+    if (i < MAX_CHAT_ID_TRIES - 1) io.out(t('channel.chatIdInvalid', { value: last }));
+  }
+  throw new BlertError('err.channelChatId', { value: last });
 }
