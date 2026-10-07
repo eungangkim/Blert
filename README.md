@@ -11,8 +11,10 @@ Node.js 24 이상이 필요합니다.
 
 ```bash
 npx @eungang/blert init        # 바로 시작 (초기 설정)
-npm install -g @eungang/blert@1.0.0   # 전역 설치. 공급망 보안을 위해 버전을 고정해서 설치하세요 (설치 뒤 명령어는 `blert`)
+npm install -g @eungang/blert@1.0.0   # 전역 설치 (설치 뒤 명령어는 `blert`)
 ```
+
+**업데이트:** 최신 버전을 쓰는 것을 권장합니다. 업데이트 전에 [릴리스 노트](https://github.com/eungangkim/Blert/releases)와 npm의 서명(provenance) 표시를 확인하고, `npm install -g @eungang/blert@latest`로 올리세요. 실행 중인 데몬은 새 버전으로 다시 시작해야 합니다(`blert stop` → `blert start`). blert는 새 버전을 스스로 조회하지 않으니 GitHub 저장소의 Watch → Releases로 알림을 받으세요.
 
 ### 지원 환경
 
