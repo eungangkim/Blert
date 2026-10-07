@@ -480,7 +480,7 @@ blert는 이를 피하는 방식(`-EncodedCommand`·WinRT 미사용)으로 알�
 1. 텔레그램에서 `@BotFather`에게 `/newbot`을 보내 봇을 만들고 **봇 토큰**을 받습니다. 토큰은 이 대화나 코드에 붙여 넣지 마세요.
 2. `blert channel add telegram` → 안내 읽고 `y` → 토큰 입력 → **새 봇에게 `/start`를 보냅니다.**
 3. **기대:** "대화를 찾았습니다: (내 이름)" → `Y` → 계정 알림 포함 여부 질문 → 폰에 **시험 메시지**가 옴 → "텔레그램 채널을 등록했습니다".
-4. Windows 자격 증명 관리자(`제어판 → 자격 증명 관리자 → Windows 자격 증명`)에 `blert-channel-telegram` 항목이 생기고, `%APPDATA%lert\config.json`에는 대화 ID와 `includeAccount`만 있고 **토큰이 없는지** 확인합니다.
+4. Windows 자격 증명 관리자(`제어판 → 자격 증명 관리자 → Windows 자격 증명`)에 `blert-channel-telegram` 항목이 생기고, `%APPDATA%\blert\config.json`에는 대화 ID와 `includeAccount`만 있고 **토큰이 없는지** 확인합니다.
 
 | 결과 | 시험 메시지 수신 | 토큰이 설정 파일에 없음 | 비고 |
 | --- | --- | --- | --- |
