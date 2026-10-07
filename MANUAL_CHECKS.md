@@ -457,7 +457,8 @@ blert는 이를 피하는 방식(`-EncodedCommand`·WinRT 미사용)으로 알�
 | 데몬 실행 중 `channel add/remove`가 바로 반영 | ✅ 사용자 확인 (2026-10-07) | |
 | 인터넷을 끊어도 데스크톱 알림은 정상 | ✅ 사용자 확인 (2026-10-07) | |
 | GitHub 저장소 연결, NPM_TOKEN 등록 | ✅ 저장소 확인함(공개, 푸시됨) · ✅ NPM_TOKEN 사용자 완료 | 시크릿 값이 맞는지는 실제 배포 때 알 수 있음 |
-| **AC-72 공개 배포 후 새 PC에서 `npx @eungang/blert init`** | 🖐️ **수동 확인 필요** | 배포 후, 새 PC 필요 |
+| **AC-72 공개 배포 후 새 PC에서 `npx @eungang/blert init`** | ✅ 이 PC의 빈 폴더에서 레지스트리 설치·실행 확인함 · 🖐️ **새 PC 확인은 사용자** | `npm install @eungang/blert@1.0.0`, `npx @eungang/blert --help` 동작. 진짜 새 PC에서의 첫 알림까지는 직접 확인 필요 |
+| 공개 배포 (npm `@eungang/blert@1.0.0`) | ✅ 배포됨 (2026-10-07) | provenance 서명 확인, 아래 참고 |
 
 ---
 
@@ -536,7 +537,7 @@ blert는 이를 피하는 방식(`-EncodedCommand`·WinRT 미사용)으로 알�
 3. ✅ (사용자 완료 2026-10-07) npm 계정을 만들고 이메일 인증과 **2단계 인증**을 켭니다. Access Tokens에서 **Granular Access Token**(Read and write, 만료일 짧게)을 만듭니다. 새 패키지의 첫 배포라 "모든 패키지" 범위가 필요할 수 있습니다. 토큰은 한 번만 보이니 복사해 두고 **이 대화에 붙여 넣지 마세요.**
 4. ✅ (사용자 완료 2026-10-07) GitHub 저장소 → Settings → Secrets and variables → Actions에 `NPM_TOKEN`으로 등록합니다. 시크릿 값은 볼 수 없어서 맞는지는 실제 배포 때 `npm publish` 단계에서 알 수 있습니다.
 5. ✅ Claude의 배포 직전 점검 (2026-10-07, 확인함): 버전을 `1.0.0`으로 올렸고(`package.json`, `package-lock.json`), 타입 검사·빌드·테스트 537개가 3회 연속 통과했습니다. 태그와 버전 비교 로직은 `v1.0.0`만 통과하고 `v1.0.1`·`1.0.0`은 거절합니다. `npm pack`은 74개 파일(dist·assets·README·LICENSE·package.json)이고 소스·테스트·소스맵은 없습니다. 묶은 파일(`blert-1.0.0.tgz`)을 빈 프로젝트에 설치해 `--help`, `list`, `status`, `service install`(n)이 동작하고 의존성 1개(`@napi-rs/keyring`)의 네이티브 모듈도 불러와지는 것을 확인했습니다. `npm view blert`는 아직 404(비어 있음)입니다.
-6. 🖐️ 사용자가 **승인**하면 태그를 푸시합니다: `git tag v1.0.0` → `git push origin v1.0.0` (GitHub Actions가 테스트 후 provenance 배포).
-7. 🖐️ 배포 후 **AC-72**: 새 PC(또는 깨끗한 환경)에서 `npx @eungang/blert init`이 첫 알림까지 되는지, `npm view @eungang/blert version`에 1.0.0이 보이는지 확인합니다.
+6. ✅ 2026-10-07 사용자 승인으로 태그를 푸시했습니다. 첫 실행(`630deb7`)은 `npm publish`에서 **E403(`blert`가 비슷한 이름 `inert`, `bser`와 충돌)**으로 실패했고 아무것도 배포되지 않았습니다. 이름을 `@eungang/blert`로 바꾸고(D-76) 태그를 새 커밋(`9672fdf`)에 다시 만들어 배포했습니다. `publish` 워크플로의 모든 단계(태그·버전 비교, 타입 검사, 테스트, `npm publish --provenance`)가 성공했습니다.
+7. 배포 후 확인: ✅ `npm view @eungang/blert`가 `1.0.0`(latest), 라이선스 MIT, `bin`은 `blert`, **provenance(SLSA v1)** 있음. `npm audit signatures`가 설치된 3개 패키지의 서명(attestation)을 확인했습니다. 빈 폴더에서 `npm install @eungang/blert@1.0.0`과 `npx @eungang/blert@1.0.0 --help`가 동작합니다. 🖐️ **AC-72의 새 PC 확인**(`npx @eungang/blert init`이 첫 알림까지 되는지)은 사용자가 직접 해 주세요.
 
 ⚠️ npm은 비슷한 이름이 이미 있으면 새 이름 등록을 막을 수 있습니다. `blert`가 지금은 비어 있지만 실제 배포 때 거절될 수 있습니다. 그때는 이름을 정해야 합니다(문서에 없는 결정이라 선택지를 정리해 드립니다).
