@@ -249,3 +249,76 @@ describe('cli channel remove / test (D-71)', () => {
     expect(h.out.join('\n')).toContain('blert channel add telegram');
   });
 });
+
+describe('cli channel account on|off (D-71)', () => {
+  const registered = async (includeAccount: boolean, extra: string[] = []) => {
+    const hh = await makeHarness(extra);
+    hh.ch.token = TOKEN;
+    await hh.deps.store.updateConfig((c) => {
+      c.channels = [{ type: 'telegram', chatId: '777', includeAccount }];
+    });
+    return hh;
+  };
+
+  it('AC-65 off는 등록은 그대로 두고 계정 알림 포함만 끈다 (토큰·대화 ID 유지, 질문 없음)', async () => {
+    h = await registered(true);
+    expect(await h.run('channel account off')).toBe(0);
+    expect((await h.deps.store.loadConfig()).channels).toEqual([{ type: 'telegram', chatId: '777', includeAccount: false }]);
+    expect(h.ch.token).toBe(TOKEN);
+    expect(h.asked).toEqual([]);
+    expect(h.ch.sent).toEqual([]); // 시험 메시지도 보내지 않는다
+    expect(h.out.at(-1)).toContain('계정 알림은 텔레그램으로 보내지 않습니다');
+    expect(h.out.at(-1)).toContain('blert channel account on');
+  });
+
+  it('AC-65 on은 계정 정보가 외부 서버를 거친다고 묻고, y면 켠다 (토큰·대화 ID 유지)', async () => {
+    h = await registered(false, ['y']);
+    expect(await h.run('channel account on')).toBe(0);
+    expect(h.asked).toHaveLength(1);
+    expect(h.asked[0]).toContain('텔레그램 서버를 거쳐');
+    expect((await h.deps.store.loadConfig()).channels).toEqual([{ type: 'telegram', chatId: '777', includeAccount: true }]);
+    expect(h.ch.token).toBe(TOKEN);
+    expect(h.out.at(-1)).toContain('계정 알림도 텔레그램으로 보냅니다');
+  });
+
+  it('AC-65 on에서 n이거나 빈 입력이면 바꾸지 않는다', async () => {
+    for (const no of ['n', '']) {
+      const hh = await registered(false, [no]);
+      expect(await hh.run('channel account on')).toBe(0);
+      expect((await hh.deps.store.loadConfig()).channels?.[0]?.includeAccount).toBe(false);
+      expect(hh.out.at(-1)).toContain('설정을 바꾸지 않았습니다');
+      await hh.cleanup();
+    }
+  });
+
+  it('이미 같은 상태면 다시 묻지 않고 그대로 알린다', async () => {
+    h = await registered(true);
+    expect(await h.run('channel account on')).toBe(0);
+    expect(h.asked).toEqual([]);
+    expect(h.out.at(-1)).toContain('계정 알림도 텔레그램으로 보냅니다');
+    const off = await registered(false);
+    expect(await off.run('channel account off')).toBe(0);
+    expect(off.out.at(-1)).toContain('보내지 않습니다');
+    await off.cleanup();
+  });
+
+  it('등록된 채널이 없으면 안내하고, 인자가 on·off가 아니면 사용법을 보여 준다', async () => {
+    h = await makeHarness();
+    expect(await h.run('channel account on')).toBe(1);
+    expect(h.err[0]).toContain('먼저 등록하세요');
+    expect((await h.deps.store.loadConfig()).channels).toBeUndefined();
+    for (const argv of ['channel account', 'channel account maybe', 'channel account on extra', 'channel account telegram']) {
+      h.err.length = 0;
+      expect(await h.run(argv), argv).toBe(1);
+      expect(h.err[0], argv).toContain('blert channel account on|off');
+    }
+  });
+
+  it('AC-65 바꾼 값은 알림을 보내는 순간에 읽으므로 실행 중인 감시에도 바로 반영된다 (설정 파일에 저장)', async () => {
+    h = await registered(false, ['y']);
+    await h.run('channel account on');
+    const raw = JSON.parse(await readFile(join(h.dir, 'config.json'), 'utf8')) as { channels: { includeAccount: boolean }[] };
+    expect(raw.channels[0]!.includeAccount).toBe(true);
+    expect(await allFilesText(h.dir)).not.toContain(TOKEN);
+  });
+});

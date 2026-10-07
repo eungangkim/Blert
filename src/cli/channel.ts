@@ -8,7 +8,7 @@ export const CHAT_WAIT_MS = 60_000;
 const CHAT_POLL_MS = 2_000;
 const TOKEN_FORMAT = /^\d{5,12}:[A-Za-z0-9_-]{30,}$/;
 const CHAT_ID_FORMAT = /^-?\d{1,20}$/;
-const SUBS = ['add', 'remove', 'test'] as const;
+const SUBS = ['add', 'remove', 'test', 'account'] as const;
 
 async function askLine(io: Io, question: string): Promise<string> {
   const line = await io.ask(question);
@@ -22,17 +22,38 @@ async function askLine(io: Io, question: string): Promise<string> {
  */
 export const channelCommand: Command = {
   name: 'channel',
-  usageKeys: ['usage.channel.add', 'usage.channel.remove', 'usage.channel.test'],
+  usageKeys: ['usage.channel.add', 'usage.channel.remove', 'usage.channel.test', 'usage.channel.account'],
   allowedOptions: [],
   async run({ rest, deps }: Ctx) {
     const [subRaw, typeRaw, ...extra] = rest;
     const sub = SUBS.find((s) => s === subRaw?.toLowerCase());
-    if (!sub || extra.length > 0) throw new BlertError('err.usage', { usage: t('usage.channel.add'), example: t('example.channel') });
+    if (!sub || extra.length > 0) {
+      throw new BlertError('err.usage', { usage: t(`usage.channel.${sub ?? 'add'}`), example: t(sub === 'account' ? 'example.channelAccount' : 'example.channel') });
+    }
+    const { io, store, channel } = deps;
+    const registered = async () => (await store.loadConfig()).channels?.find((c) => c.type === 'telegram');
+
+    // 등록한 채널은 그대로 두고 계정 알림 포함 여부만 바꾼다 (D-71)
+    if (sub === 'account') {
+      const want = typeRaw?.toLowerCase();
+      if ((want !== 'on' && want !== 'off') || extra.length > 0) throw new BlertError('err.usage', { usage: t('usage.channel.account'), example: t('example.channelAccount') });
+      const cfg = await registered();
+      if (!cfg) throw new BlertError('err.channelNoneAccount');
+      const on = want === 'on';
+      if (on && !cfg.includeAccount && !(await askYesNo(io, t('channel.accountAsk'), false))) {
+        io.out(t('channel.accountUnchanged')); // 켜기는 계정 정보가 외부 서버를 거치므로 동의를 다시 받는다 (D-69)
+        return 0;
+      }
+      await store.updateConfig((c) => {
+        const ch = c.channels?.find((x) => x.type === 'telegram');
+        if (ch) ch.includeAccount = on; // 토큰과 대화 ID는 건드리지 않는다
+      });
+      io.out(t(on ? 'channel.accountOn' : 'channel.accountOff'));
+      return 0;
+    }
+
     if (typeRaw !== undefined && typeRaw.toLowerCase() !== 'telegram') throw new BlertError('err.channelType', { value: typeRaw });
     if (sub === 'add' && typeRaw === undefined) throw new BlertError('err.usage', { usage: t('usage.channel.add'), example: t('example.channel') });
-    const { io, store, channel } = deps;
-
-    const registered = async () => (await store.loadConfig()).channels?.find((c) => c.type === 'telegram');
 
     if (sub === 'remove') {
       const had = (await registered()) !== undefined;
