@@ -525,15 +525,15 @@ blert는 이를 피하는 방식(`-EncodedCommand`·WinRT 미사용)으로 알�
 배포는 되돌릴 수 없습니다(같은 버전 번호는 다시 쓸 수 없음). **아래 순서대로, 사용자가 확인·승인한 뒤에만** 태그를 푸시합니다.
 
 1. 🖐️ 위 수동 확인이 끝났는지 확인합니다.
-2. 🖐️ GitHub 저장소(`github.com/eungangkim/Blert`)를 이 폴더에 연결하고 푸시합니다. 현재 이 저장소에는 `git remote`가 설정돼 있지 않습니다.
+2. ✅ GitHub 저장소(`github.com/eungangkim/Blert`) 연결과 푸시, **공개 여부**: 2026-10-07 확인함(원격 `main`이 로컬 최신 커밋과 같고, 로그인 없이 조회되는 공개 저장소). 아래는 처음 연결할 때의 명령입니다.
    ```
    git remote add origin https://github.com/eungangkim/Blert.git
    git push -u origin main
    ```
    저장소는 **공개(public)**여야 provenance 서명이 됩니다.
-3. 🖐️ npm 계정을 만들고 이메일 인증과 **2단계 인증**을 켭니다. Access Tokens에서 **Granular Access Token**(Read and write, 만료일 짧게)을 만듭니다. 새 패키지의 첫 배포라 "모든 패키지" 범위가 필요할 수 있습니다. 토큰은 한 번만 보이니 복사해 두고 **이 대화에 붙여 넣지 마세요.**
-4. 🖐️ GitHub 저장소 → Settings → Secrets and variables → Actions에 `NPM_TOKEN`으로 등록합니다.
-5. ✅ Claude가 배포 직전 점검을 합니다: 버전을 `1.0.0`으로 올리기(`package.json`, `package-lock.json`), `npm pack` 내용, 테스트·빌드, 태그와 버전 일치.
+3. ✅ (사용자 완료 2026-10-07) npm 계정을 만들고 이메일 인증과 **2단계 인증**을 켭니다. Access Tokens에서 **Granular Access Token**(Read and write, 만료일 짧게)을 만듭니다. 새 패키지의 첫 배포라 "모든 패키지" 범위가 필요할 수 있습니다. 토큰은 한 번만 보이니 복사해 두고 **이 대화에 붙여 넣지 마세요.**
+4. ✅ (사용자 완료 2026-10-07) GitHub 저장소 → Settings → Secrets and variables → Actions에 `NPM_TOKEN`으로 등록합니다. 시크릿 값은 볼 수 없어서 맞는지는 실제 배포 때 `npm publish` 단계에서 알 수 있습니다.
+5. ✅ Claude의 배포 직전 점검 (2026-10-07, 확인함): 버전을 `1.0.0`으로 올렸고(`package.json`, `package-lock.json`), 타입 검사·빌드·테스트 537개가 3회 연속 통과했습니다. 태그와 버전 비교 로직은 `v1.0.0`만 통과하고 `v1.0.1`·`1.0.0`은 거절합니다. `npm pack`은 74개 파일(dist·assets·README·LICENSE·package.json)이고 소스·테스트·소스맵은 없습니다. 묶은 파일(`blert-1.0.0.tgz`)을 빈 프로젝트에 설치해 `--help`, `list`, `status`, `service install`(n)이 동작하고 의존성 1개(`@napi-rs/keyring`)의 네이티브 모듈도 불러와지는 것을 확인했습니다. `npm view blert`는 아직 404(비어 있음)입니다.
 6. 🖐️ 사용자가 **승인**하면 태그를 푸시합니다: `git tag v1.0.0` → `git push origin v1.0.0` (GitHub Actions가 테스트 후 provenance 배포).
 7. 🖐️ 배포 후 **AC-72**: 새 PC(또는 깨끗한 환경)에서 `npx blert init`이 첫 알림까지 되는지, `npm view blert`에 1.0.0이 보이는지 확인합니다.
 
