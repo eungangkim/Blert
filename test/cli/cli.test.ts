@@ -160,7 +160,7 @@ describe('cli 오타 제안·도움말', () => {
       h.out.length = 0;
       expect(await h.run(`${cmd.name} --help`)).toBe(0);
       const text = h.out.join('\n');
-      const examples = text.split(t('help.examplesHeader'))[1]!.split('\n').filter((l) => /^\s+(npx )?blert /.test(l));
+      const examples = text.split(t('help.examplesHeader'))[1]!.split('\n').filter((l) => /^\s+(npx (@[\w-]+\/)?)?blert /.test(l));
       expect(examples.length, cmd.name).toBeGreaterThanOrEqual(2);
       expect(text, cmd.name).not.toContain('--mode');
 

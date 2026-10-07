@@ -56,8 +56,8 @@
 ## AC-25 — 설치부터 첫 알림까지 1분 (새 PC)
 
 1. Node.js 24 이상만 설치된 PC에서 시간을 재기 시작한다.
-2. `npx blert init` → 고지 동의 → 소리 켜기 → 프리셋 `major-swing` 선택
-3. `npx blert test`
+2. `npx @eungang/blert init` → 고지 동의 → 소리 켜기 → 프리셋 `major-swing` 선택
+3. `npx @eungang/blert test`
 4. **기대:** 알림이 뜰 때까지 1분 이내. (`npx`의 다운로드 시간이 포함됩니다.)
 
 ## v0.1 완료 기준 (B11) — 일주일 사용
@@ -427,7 +427,7 @@ blert는 이를 피하는 방식(`-EncodedCommand`·WinRT 미사용)으로 알�
 | `service install`이 "작업 스케줄러에 등록하지 못했습니다" | 작업 스케줄러 서비스(Schedule)가 켜져 있는지, 회사·학교 PC의 정책이 작업 생성을 막는지 |
 | 업데이트·폴더 이동 뒤 `blert status`가 "등록된 경로를 찾을 수 없습니다" | `blert service install`을 다시 실행해 새 경로로 갱신 |
 | 로그인했는데 데몬이 안 켜짐 | `blert status`, `blert logs -n 30`. 작업 스케줄러에서 blert 작업의 "마지막 실행 결과" 확인 |
-| npx로 실행하다가 install 거부 | `npm install -g blert` 후 전역 설치본에서 실행 |
+| npx로 실행하다가 install 거부 | `npm install -g @eungang/blert` 후 전역 설치본에서 실행 |
 
 ---
 
@@ -450,14 +450,14 @@ blert는 이를 피하는 방식(`-EncodedCommand`·WinRT 미사용)으로 알�
 | AC-69 로그·화면·설정에 토큰 없음 | ✅ 확인함 (자동 테스트) | URL 경로의 `bot<토큰>`도 마스킹 |
 | AC-70 패키지 내용·버전·워크플로 점검 | ✅ 확인함 | `npm pack`: 74개 파일, dist·assets·README·LICENSE뿐, 소스맵·테스트·키 없음 |
 | 실제 텔레그램 서버의 오류 응답 처리 | ✅ 확인함 | 가짜 토큰으로 실제 요청 → 401 → "토큰 거부" 안내 |
-| `npm view blert` | ✅ 확인함 | 404 — 지금은 비어 있음 (확정은 실제 배포 때) |
+| 패키지 이름 | ⚠️ `blert`는 npm 이름 정책(비슷한 이름 `inert`, `bser`)으로 **거부됨** → `@eungang/blert`로 변경 (2026-10-07) | 명령어는 그대로 `blert` |
 | 텔레그램 봇 만들기와 실제 등록 | ✅ 사용자 확인 (2026-10-07) | 등록 흐름 통과. 확인 중 잘못 친 입력이 대화 ID로 쓰이던 문제를 고침 |
 | AC-71 폰에서 실제 알림 수신 | ✅ 사용자 확인 (2026-10-07) | 데몬을 새 코드로 재시작한 뒤 확인 |
 | 계정 알림 포함 켬/끔이 실제로 다르게 동작 | ✅ 사용자 확인 (2026-10-07) | `channel account on/off`로 확인 |
 | 데몬 실행 중 `channel add/remove`가 바로 반영 | ✅ 사용자 확인 (2026-10-07) | |
 | 인터넷을 끊어도 데스크톱 알림은 정상 | ✅ 사용자 확인 (2026-10-07) | |
 | GitHub 저장소 연결, NPM_TOKEN 등록 | ✅ 저장소 확인함(공개, 푸시됨) · ✅ NPM_TOKEN 사용자 완료 | 시크릿 값이 맞는지는 실제 배포 때 알 수 있음 |
-| **AC-72 공개 배포 후 새 PC에서 `npx blert init`** | 🖐️ **수동 확인 필요** | 배포 후, 새 PC 필요 |
+| **AC-72 공개 배포 후 새 PC에서 `npx @eungang/blert init`** | 🖐️ **수동 확인 필요** | 배포 후, 새 PC 필요 |
 
 ---
 
@@ -537,6 +537,6 @@ blert는 이를 피하는 방식(`-EncodedCommand`·WinRT 미사용)으로 알�
 4. ✅ (사용자 완료 2026-10-07) GitHub 저장소 → Settings → Secrets and variables → Actions에 `NPM_TOKEN`으로 등록합니다. 시크릿 값은 볼 수 없어서 맞는지는 실제 배포 때 `npm publish` 단계에서 알 수 있습니다.
 5. ✅ Claude의 배포 직전 점검 (2026-10-07, 확인함): 버전을 `1.0.0`으로 올렸고(`package.json`, `package-lock.json`), 타입 검사·빌드·테스트 537개가 3회 연속 통과했습니다. 태그와 버전 비교 로직은 `v1.0.0`만 통과하고 `v1.0.1`·`1.0.0`은 거절합니다. `npm pack`은 74개 파일(dist·assets·README·LICENSE·package.json)이고 소스·테스트·소스맵은 없습니다. 묶은 파일(`blert-1.0.0.tgz`)을 빈 프로젝트에 설치해 `--help`, `list`, `status`, `service install`(n)이 동작하고 의존성 1개(`@napi-rs/keyring`)의 네이티브 모듈도 불러와지는 것을 확인했습니다. `npm view blert`는 아직 404(비어 있음)입니다.
 6. 🖐️ 사용자가 **승인**하면 태그를 푸시합니다: `git tag v1.0.0` → `git push origin v1.0.0` (GitHub Actions가 테스트 후 provenance 배포).
-7. 🖐️ 배포 후 **AC-72**: 새 PC(또는 깨끗한 환경)에서 `npx blert init`이 첫 알림까지 되는지, `npm view blert`에 1.0.0이 보이는지 확인합니다.
+7. 🖐️ 배포 후 **AC-72**: 새 PC(또는 깨끗한 환경)에서 `npx @eungang/blert init`이 첫 알림까지 되는지, `npm view @eungang/blert version`에 1.0.0이 보이는지 확인합니다.
 
 ⚠️ npm은 비슷한 이름이 이미 있으면 새 이름 등록을 막을 수 있습니다. `blert`가 지금은 비어 있지만 실제 배포 때 거절될 수 있습니다. 그때는 이름을 정해야 합니다(문서에 없는 결정이라 선택지를 정리해 드립니다).

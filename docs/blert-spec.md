@@ -41,9 +41,9 @@ Sep 30, 2026 · @김은강
 
 | 항목 | 내용 |
 | --- | --- |
-| 서비스 이름 | `blert` (binance + alert). npm 패키지명·명령어 동일 |
+| 서비스 이름 | `blert` (binance + alert). 명령어는 `blert`, npm 패키지명은 `@eungang/blert` (D-76) |
 | 모티브 | [sounds.sh](https://www.sounds.sh/) — 한 줄 설치, 큐레이션된 테마 묶음, 터미널을 들여다보지 않아도 되는 알림 |
-| 형태 | TypeScript + Node.js CLI, npm 배포 (`npx blert ...`) |
+| 형태 | TypeScript + Node.js CLI, npm 배포 (`npx @eungang/blert ...`, 설치 뒤에는 `blert ...`) |
 | 실행 위치 | 사용자 PC (서버 없음) |
 | 핵심 가치 1 | 한 줄 설치 + 프리셋 한 줄로 바로 쓸 수 있음 |
 | 핵심 가치 2 | 키와 데이터가 사용자 PC 밖으로 나가지 않음 |
@@ -53,7 +53,7 @@ Sep 30, 2026 · @김은강
 
 | sounds.sh | blert |
 | --- | --- |
-| `npx soundsh find` 한 줄 설치 | `npx blert init` |
+| `npx soundsh find` 한 줄 설치 | `npx @eungang/blert init` |
 | 테마 (이벤트 사운드 묶음) | 프리셋 (알림 조건 묶음) |
 | 테마 단일 명령 설치 | `blert preset install <이름>` |
 | 이벤트별 사운드 | 알림 유형별 사운드 (저작권 없는 음원) |
@@ -85,7 +85,7 @@ Sep 30, 2026 · @김은강
 
 | ID | 사용자 행동 | 시스템 반응 | 성공 기준 |
 | --- | --- | --- | --- |
-| SC-01 | `npx blert init` → 고지 동의 → 사운드 켜기 → 프리셋 `major-swing` 선택 → `blert run` | 설정 폴더 생성, 규칙 3개 등록, 감시 시작 알림 표시 | 설치부터 감시 시작 알림까지 1분 이내 |
+| SC-01 | `npx @eungang/blert init` → 고지 동의 → 사운드 켜기 → 프리셋 `major-swing` 선택 → `blert run` | 설정 폴더 생성, 규칙 3개 등록, 감시 시작 알림 표시 | 설치부터 감시 시작 알림까지 1분 이내 |
 | SC-02 | `blert add price BTC above 70000` → `blert run` | 규칙 등록 확인 메시지. 가격 돌파 시 데스크톱 알림 + up 사운드, 규칙은 1회성으로 비활성 | `list --all`에서 비활성 상태로 보임 |
 | SC-03 | `run` 중 노트북 덮개를 닫았다가 연다 | 60초 이상 공백 감지 → 재연결 → "감시 중단: 시작\~종료 시각" warn 알림 | 공백 구간이 알림과 로그에 남음 |
 | SC-04 | `blert key add` → Ed25519 키 입력 → `blert add fill all` → `blert run` | 키체인 저장, 권한 검사 통과, 체결 시 account 사운드와 알림 | 설정 파일·로그에 키 흔적 0건 |
@@ -111,7 +111,7 @@ Sep 30, 2026 · @김은강
 | D-10 | 실행 모드 | 포그라운드 → 데몬 → OS 서비스 순으로 구현, 사용자가 선택 | 단순한 것부터 출시 | 2026-09-30 |
 | D-11 | 사운드 | 저작권 없는 음원만 사용, 출처 기록 | 배포 시 저작권 위험 제거 | 2026-09-30 |
 | D-12 | 언어 | TypeScript + Node.js | 타입으로 규칙·설정 구조를 명확히, npx 배포와 일치 | 2026-09-30 |
-| D-13 | 이름 | `blert` (binance + alert) | 짧고 치기 쉬움, npm 이름 비어 있음 (2026-09-30 확인) | 2026-09-30 |
+| D-13 | 이름 | `blert` (binance + alert) (**npm 패키지명은 D-76으로 `@eungang/blert`로 변경**) | 짧고 치기 쉬움, npm 이름 비어 있음 (2026-09-30 확인) | 2026-09-30 |
 | D-14 | 메시지 언어 | 한국어만, 메시지는 다국어 구조로 분리 | 나중에 영어 추가 비용 최소화 | 2026-09-30 |
 | D-15 | 설정 파일 | JSON | Node 기본 지원, 의존성 0 | 2026-09-30 |
 | D-16 | 키 타입 | Ed25519만 허용 | 바이낸스 권장, 최신 WebSocket API 인증에 맞음 | 2026-09-30 |
@@ -174,6 +174,7 @@ Sep 30, 2026 · @김은강
 | D-73 | 채널 전송 실패 | 알림당 1회 시도에 짧은 재시도 2회(요청 한도 429는 응답의 대기 시간만큼). 그래도 실패하면 포기하고 데스크톱·소리는 영향받지 않는다. 실패 안내는 한 번만 보이고 로그에 남긴다. 오프라인 동안 밀린 알림은 나중에 다시 보내지 않는다 | 시점이 틀린 알림이 오해를 부름 (NFR-REL-02) | 2026-10-07 |
 | D-74 | 배포 버전 | `1.0.0`으로 공개한다. README에 검증된 환경은 Windows이고 macOS·Linux는 자동 테스트(CI)만 통과했으며 데몬·서비스·알림은 미검증임을 명시한다 | 설계서의 v1.0 기준과 일치하고 검증 범위는 사실대로 밝힘 | 2026-10-07 |
 | D-75 | 배포 절차 | 구현과 수동 확인이 끝난 뒤 배포한다. ① 사용자가 GitHub 저장소를 `git remote`로 연결해 푸시 ② npm 계정(2단계 인증)에서 토큰을 만들어 저장소 시크릿 `NPM_TOKEN`에 등록 ③ 배포 직전 점검(`npm pack` 내용, 태그와 `package.json` 버전 일치, 의존성 고정, 액션 커밋 SHA 고정) ④ **사용자 승인 뒤** 태그(`v1.0.0`) 푸시로 provenance 배포. 태그 푸시와 `npm publish`는 되돌릴 수 없어 사용자 승인 없이 하지 않는다 | 같은 버전 번호는 다시 쓸 수 없음 (NFR-SEC-04) | 2026-10-07 |
+| D-76 | npm 패키지 이름 | 명령어는 `blert` 그대로이고, npm 패키지 이름은 `@eungang/blert`(범위 이름)로 배포한다. `package.json`의 `bin`이 `blert`이므로 `npm install -g @eungang/blert` 뒤에는 `blert ...`를 쓰고, 설치 없이 쓸 때는 `npx @eungang/blert ...`다. 일반 이름 `blert`는 npm이 비슷한 이름(`inert`, `bser`)을 이유로 거부했다(2026-10-07 실제 배포에서 확인, E403). 범위 이름 `@eungang`은 npm이 제안한 것으로 npm 사용자 이름과 같아야 한다 | npm 이름 정책 때문. 범위 이름은 비슷한 이름 검사를 받지 않음 | 2026-10-07 |
 
 ## A4. 기능 요구사항
 
@@ -295,6 +296,7 @@ Sep 30, 2026 · @김은강
 | Q-01 | 읽기 전용 키로 선물 계정·포지션 조회가 되는가 | D-03, FR-ACC-03, FR-ALERT-05 | v0.3 착수 전 | 해결 → D-53 (실서버 읽기 전용 키로 `positionRisk`, `listenKey` 확인) |
 | Q-02 | 키 타입 | B5, B6 | — | 해결 → D-16 |
 | Q-03 | 서비스 이름 | 배포, 명령어 | — | 해결 → D-13 |
+| Q-14 | npm 패키지 이름 확정 (`blert`가 npm 이름 정책으로 거부될 가능성) | D-13, D-75 | v1.0 배포 | 해결 → D-76 (`@eungang/blert`) |
 | Q-04 | TypeScript 여부 | 전체 코드 | — | 해결 → D-12 |
 | Q-05 | 기본 프리셋 구성 | FR-PRE-02 | — | 해결 → D-23 |
 | Q-06 | 영어 지원 | NFR-UX-02 | — | 해결 → D-14 |
@@ -446,7 +448,7 @@ type BlertEvent =
 ### 사용 예
 
 ```text
-npx blert init
+npx @eungang/blert init
 blert preset install major-swing
 blert add price BTC above 70000
 blert add change ETH 5% 1h down
@@ -809,7 +811,7 @@ interface NotifyAdapter {
 | AC-22 | FR-CONN-01 | 모의 스트림 | 연결 강제 종료 | 1초부터 백오프 재연결, 5분 넘으면 warn 알림 |
 | AC-23 | NFR-SEC-02 | 감시 중 | 네트워크 요청 기록 | 바이낸스 도메인 외 요청 0건 |
 | AC-24 | NFR-UX-02 | — | 소스 코드 검사 | 사용자 메시지 하드코딩 0건 (i18n 키만 사용) |
-| AC-25 | NFR-UX-01 | 수동 | 새 PC에서 `npx blert init` | 첫 알림(`test`)까지 1분 이내 |
+| AC-25 | NFR-UX-01 | 수동 | 새 PC에서 `npx @eungang/blert init` | 첫 알림(`test`)까지 1분 이내 |
 
 ### 수용 기준 — v0.2 (초안)
 
@@ -882,7 +884,7 @@ interface NotifyAdapter {
 | AC-69 | NFR-SEC-01 | 채널 사용 전체 | 로그·오류·화면·설정 검사 | 토큰 형태 문자열 0건 (마스킹 규칙에 토큰 형식 추가) |
 | AC-70 | NFR-SEC-03·04, D-75 | 배포 전 | `npm pack` 내용과 package.json 검사 | 필요한 파일만 포함, 키·테스트·소스맵 없음, 의존성 10개 이하·고정, 태그와 버전 일치 |
 | AC-71 | FR-NOTI-03 (수동) | 사용자 텔레그램 봇 | 실제 알림 발동 | 폰에서 알림 수신 |
-| AC-72 | D-74, D-75 (수동) | 공개 배포 완료 | 새 PC에서 `npx blert init` | 첫 알림까지 동작 (AC-25와 같은 절차) |
+| AC-72 | D-74, D-75, D-76 (수동) | 공개 배포 완료 | 새 PC에서 `npx @eungang/blert init` | 첫 알림까지 동작 (AC-25와 같은 절차) |
 
 v1.0 이후 수용 기준은 해당 버전 착수 전에 추가한다.
 

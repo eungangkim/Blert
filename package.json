@@ -1,5 +1,5 @@
 {
-  "name": "blert",
+  "name": "@eungang/blert",
   "version": "1.0.0",
   "description": "바이낸스 현물·선물 알림을 명령어로 설정하고 내 PC에서 받는 로컬 CLI",
   "type": "module",

@@ -68,7 +68,7 @@ describe('cli service install (FR-RUN-04, D-62~D-66)', () => {
     h.svc.files.add(h.svc.scriptPath);
     expect(await h.run('service install')).toBe(1);
     expect(h.err[0]).toContain('npx');
-    expect(h.err[0]).toContain('npm install -g blert');
+    expect(h.err[0]).toContain('npm install -g @eungang/blert');
     expect(h.svc.registerCalls).toBe(0);
     expect(isNpxPath('/home/u/.npm/_npx/abc/node_modules/blert/dist/index.js')).toBe(true);
     expect(isNpxPath('C:\\blert\\dist\\index.js')).toBe(false);
