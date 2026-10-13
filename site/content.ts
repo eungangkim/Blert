@@ -55,6 +55,7 @@ interface Content {
   };
   trust: { h1: string; lead: string; sections: { title: string; items: string[] }[] };
   privacy: { h1: string; body: string[] };
+  sponsor: { title: string; body: string };
 }
 
 export const KO: Content = {
@@ -196,6 +197,10 @@ export const KO: Content = {
       '문의와 제안은 GitHub 이슈로 받습니다. 모든 문의에 답하지는 못합니다.',
     ],
   },
+  sponsor: {
+    title: '후원',
+    body: 'blert는 무료 오픈소스입니다. 도움이 되었다면 후원으로 개발을 응원해 주실 수 있습니다. 후원은 기능, 지원 우선권, 알림 동작과 무관하며 후원자 이름은 공개하지 않습니다.',
+  },
 };
 
 export const EN: Content = {
@@ -336,5 +341,9 @@ export const EN: Content = {
       'This site never asks for API keys, private keys or account details. Anyone asking for them is not this site.',
       'Questions and suggestions go through GitHub issues. Not every message can be answered.',
     ],
+  },
+  sponsor: {
+    title: 'Support',
+    body: 'blert is free and open source. If it helps you, you can support development with a sponsorship. Sponsorship does not affect features, support priority or how alerts work, and sponsors’ names are not published.',
   },
 };

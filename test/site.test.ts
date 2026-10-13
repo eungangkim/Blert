@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { buildIndex, FORBIDDEN_WORDING, type GalleryIndex } from '../gallery/scripts/lib.js';
 import { EN, KO, PAGES } from '../site/content.js';
 import { esc, pick, rawUrl, renderSite } from '../site/build.js';
+import { SPONSORS } from '../site/sponsors.js';
 
 // 정적 사이트 (계획 3단계, D-87, D-133). 수용 기준 번호가 없는 항목이라 결정 번호로 시작한다.
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -118,6 +119,21 @@ describe('정적 사이트 (D-133)', () => {
     expect(pick('en', '청산 단계 경고 (Liquidation guard)', 'name')).toBe('Liquidation guard');
     expect(pick('en', '한국어 문장. / English sentence.', 'description')).toBe('English sentence.');
     expect(pick('ko', '그냥 이름', 'name')).toBe('그냥 이름');
+  });
+
+  it('D-133 후원 링크가 없으면 후원 구역을 만들지 않고, 있으면 https 외부 링크로만 보여 준다', async () => {
+    expect(SPONSORS.every((s) => s.url.startsWith('https://') && !s.url.includes('?'))).toBe(true);
+    const { index } = await site();
+    const none = renderSite(index, REF, []).find((f) => f.path === 'index.html')!.html;
+    expect(none).not.toContain('후원');
+    const some = renderSite(index, REF, [{ labelKo: '후원하기', labelEn: 'Sponsor', url: 'https://example.com/sponsor' }]);
+    const ko = some.find((f) => f.path === 'index.html')!.html;
+    expect(ko).toContain('href="https://example.com/sponsor" rel="noopener noreferrer"');
+    expect(ko).toContain('후원자 이름은 공개하지 않습니다');
+    const en = some.find((f) => f.path === 'en/index.html')!.html;
+    expect(en).toContain('Sponsorship does not affect features');
+    expect(text(ko)).not.toMatch(FORBIDDEN_WORDING);
+    expect(text(en)).not.toMatch(FORBIDDEN_WORDING);
   });
 
   it('D-133 사이트 문구가 말하는 사실이 저장소와 맞는다 (런타임 의존성 수, 설치 명령)', async () => {

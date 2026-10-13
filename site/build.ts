@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildIndex, type GalleryIndex, type PresetEntry, type ThemeEntry } from '../gallery/scripts/lib.js';
 import { EN, KO, NPM, PAGES, REPO, type Lang, type PageId } from './content.js';
+import { SPONSORS, type Sponsor } from './sponsors.js';
 
 /**
  * 정적 사이트를 만든다 (D-133, 계획 3단계). 외부 요청(글꼴, 분석, CDN)이 없는 순수 HTML·CSS·JS다.
@@ -80,7 +81,18 @@ ${body}
 const codeBlock = (c: ReturnType<typeof content>, code: string): string =>
   `<div class="code"><pre><code>${esc(code)}</code></pre><button type="button" class="copy" data-copy>${esc(c.copy)}</button></div>`;
 
-function home(lang: Lang): string {
+function sponsorSection(lang: Lang, sponsors: readonly Sponsor[]): string {
+  if (sponsors.length === 0) return '';
+  const s = content(lang).sponsor;
+  const links = sponsors.map((x) => `<a class="btn alt" href="${esc(x.url)}" rel="noopener noreferrer">${esc(lang === 'ko' ? x.labelKo : x.labelEn)}</a>`).join(' ');
+  return `<section>
+<h2>${esc(s.title)}</h2>
+<p>${esc(s.body)}</p>
+<p class="cta">${links}</p>
+</section>`;
+}
+
+function home(lang: Lang, sponsors: readonly Sponsor[]): string {
   const c = content(lang);
   const h = c.home;
   return `<section class="hero">
@@ -97,7 +109,8 @@ ${h.features.map((f) => `<article class="card"><h3>${esc(f.title)}</h3><p>${f.bo
 <section>
 <h2>${esc(h.envTitle)}</h2>
 <p>${esc(h.envBody)}</p>
-</section>`;
+</section>
+${sponsorSection(lang, sponsors)}`;
 }
 
 function start(lang: Lang): string {
@@ -182,10 +195,10 @@ export interface SiteFile {
 }
 
 /** 모든 페이지를 만든다 (파일에는 쓰지 않는다) */
-export function renderSite(index: GalleryIndex, ref: string): SiteFile[] {
+export function renderSite(index: GalleryIndex, ref: string, sponsors: readonly Sponsor[] = SPONSORS): SiteFile[] {
   const out: SiteFile[] = [];
   for (const lang of ['ko', 'en'] as const) {
-    const bodies: Record<PageId, string> = { index: home(lang), start: start(lang), gallery: gallery(lang, index, ref), trust: trust(lang), privacy: privacy(lang) };
+    const bodies: Record<PageId, string> = { index: home(lang, sponsors), start: start(lang), gallery: gallery(lang, index, ref), trust: trust(lang), privacy: privacy(lang) };
     for (const id of PAGES) out.push({ path: `${lang === 'en' ? 'en/' : ''}${fileName(id)}`, html: layout(lang, id, bodies[id]) });
   }
   return out;
