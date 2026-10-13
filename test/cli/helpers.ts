@@ -1,7 +1,8 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runCli, type DaemonPort, type Deps, type NotifierPort, type PresetService, type Runner, type ServicePort, type ChannelPort } from '../../src/cli/index.js';
+import type { DownloadResult } from '../../src/shared/download.js';
+import { runCli, type DownloaderPort, type DaemonPort, type Deps, type NotifierPort, type PresetService, type Runner, type ServicePort, type ChannelPort } from '../../src/cli/index.js';
 import { createPresetService } from '../../src/presets/index.js';
 import { createKeyService } from '../../src/security/index.js';
 import type { NetworkMode } from '../../src/shared/network.js';
@@ -55,7 +56,16 @@ export interface ChannelSim {
   sent: { chatId: string; text: string; token: string | undefined }[];
 }
 
+/** 주소 내려받기 대신 쓰는 가짜 (v1.1). 주소마다 응답을 정해 두고, 요청한 주소를 기록한다 */
+export interface DownloadSim {
+  responses: Map<string, DownloadResult>;
+  /** 요청한 주소와 상한 */
+  calls: { url: string; maxBytes: number }[];
+}
+
 export interface Harness {
+  /** 주소 내려받기 시뮬레이션 (v1.1) */
+  dl: DownloadSim;
   /** 외부 채널 시뮬레이션 (v1.0) */
   ch: ChannelSim;
   /** 데몬 시뮬레이션 (v0.4) */
@@ -190,6 +200,13 @@ export async function makeHarness(
     },
     hasToken: async () => ch.token !== undefined,
   };
+  const dl: DownloadSim = { responses: new Map(), calls: [] };
+  const downloader: DownloaderPort = {
+    download: async (url, o) => {
+      dl.calls.push({ url, maxBytes: o.maxBytes });
+      return dl.responses.get(url) ?? { ok: false, reason: 'http', status: 404 };
+    },
+  };
   const daemon: DaemonPort = {
     launch: (o) => {
       sim.launches++;
@@ -229,6 +246,7 @@ export async function makeHarness(
     daemon,
     service,
     channel,
+    downloader,
     interrupt: () => sim.abort.signal,
     presets: presets === 'real' ? createPresetService(store) : presets,
     io: {
@@ -245,6 +263,7 @@ export async function makeHarness(
     sim,
     svc,
     ch,
+    dl,
     deps,
     dir,
     keychain,

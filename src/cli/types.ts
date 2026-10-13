@@ -3,6 +3,7 @@ import type { PresetService } from '../presets/index.js';
 import type { SoundKind } from '../shared/types.js';
 import type { KeyService } from '../security/index.js';
 import type { NetworkMode } from '../shared/network.js';
+import type { DownloadResult } from '../shared/download.js';
 
 export type { PresetService };
 
@@ -83,6 +84,14 @@ export interface ChannelPort {
   hasToken(): Promise<boolean>;
 }
 
+/**
+ * 사용자가 명령에 직접 입력한 주소에서 파일을 내려받는 기능 (v1.1, D-78·D-93). 진입점에서 shared/download를 연결하고,
+ * 테스트는 가짜를 넣는다. 자동 요청은 없다.
+ */
+export interface DownloaderPort {
+  download(url: string, o: { maxBytes: number }): Promise<DownloadResult>;
+}
+
 export interface Deps {
   store: Store;
   presets: PresetService;
@@ -98,6 +107,8 @@ export interface Deps {
   service: ServicePort;
   /** 외부 알림 채널 (v1.0) */
   channel: ChannelPort;
+  /** 주소 방식 소리·테마 내려받기 (v1.1) */
+  downloader: DownloaderPort;
   /** 호출하면 Ctrl+C에 중단되는 신호를 돌려준다 (blert logs -f). 호출한 때부터 Ctrl+C를 가로챈다 */
   interrupt: () => AbortSignal;
   io: Io;

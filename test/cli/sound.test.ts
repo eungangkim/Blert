@@ -45,7 +45,7 @@ describe('cli sound / test (FR-NOTI-01~02)', () => {
     expect(h.err[0]).toContain('up, down, account, warn');
     expect(await h.run('sound test upp')).toBe(1);
     expect(h.err[1]).toContain('혹시 `up`?');
-    expect(await h.run('sound tset up')).toBe(1);
+    expect(await h.run('sound tesst up')).toBe(1);
     expect(h.err[2]).toContain('혹시 `test`?');
     expect(await h.run('sound')).toBe(1);
     expect(await h.run('sound on now')).toBe(1);

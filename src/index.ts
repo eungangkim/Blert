@@ -4,7 +4,9 @@ import { closeSync, mkdirSync, openSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInterface, type Interface } from 'node:readline';
 import { runCli } from './cli/index.js';
-import type { ChannelPort, DaemonPort, Deps, Io } from './cli/index.js';
+import type { ChannelPort, DaemonPort, Deps, DownloaderPort, Io } from './cli/index.js';
+import { download } from './shared/download.js';
+import type { SoundKind } from './shared/types.js';
 import { createServicePort } from './service-win.js';
 import { createPresetService } from './presets/index.js';
 import { TelegramClient, createNotifier, type ChannelSource } from './notify/index.js';
@@ -94,8 +96,12 @@ const channel: ChannelPort = {
   removeToken: () => secrets.remove(),
   hasToken: async () => (await secrets.load().catch(() => undefined)) !== undefined,
 };
+// 사용자 소리 (v1.1, D-82·D-95): 재생할 때마다 설정을 읽어, 실행 중인 데몬도 sound set/reset을 바로 따른다.
+const userSound = (kind: SoundKind) => store.userSoundPath(kind);
+// 주소 방식 내려받기 (D-78·D-93): 사용자가 명령에 입력한 주소로만 접속한다
+const downloader: DownloaderPort = { download: (url, o) => download(url, { maxBytes: o.maxBytes }) };
 const soundEnabledForTest = async () => (await store.loadConfig()).soundEnabled;
-const notifier = createNotifier({ out: (line) => io.out(line), soundEnabled: soundEnabledForTest, channel: { source: channelSource } });
+const notifier = createNotifier({ out: (line) => io.out(line), soundEnabled: soundEnabledForTest, userSound, channel: { source: channelSource } });
 const soundEnabled = async () => (await store.loadConfig()).soundEnabled;
 const keys = createKeyService({ keychain: createNapiKeychain(), mode: network });
 const runner = createRunner({
@@ -104,7 +110,7 @@ const runner = createRunner({
   keys,
   network,
   // 데몬에는 터미널이 없어 console 어댑터를 쓰지 않는다. 알림 전체는 로그에 남는다 (D-55)
-  makeNotifier: (logger, mode) => createNotifier({ out: mode === 'daemon' ? () => {} : (line) => io.out(line), console: mode !== 'daemon', soundEnabled, logger, channel: { source: channelSource } }),
+  makeNotifier: (logger, mode) => createNotifier({ out: mode === 'daemon' ? () => {} : (line) => io.out(line), console: mode !== 'daemon', soundEnabled, userSound, logger, channel: { source: channelSource } }),
 });
 
 /** 같은 실행 파일을 숨김 명령(daemon-run)으로 분리 실행한다 (D-54). 표준 출력·오류는 로그 폴더의 daemon.err로 보낸다. */
@@ -142,7 +148,7 @@ const interrupt = (): AbortSignal => {
   return ac.signal;
 };
 const service = createServicePort();
-const deps: Deps = { store, presets: createPresetService(store), notifier, runner, keys, network, daemon, service, channel, interrupt, io };
+const deps: Deps = { store, presets: createPresetService(store), notifier, runner, keys, network, daemon, service, channel, downloader, interrupt, io };
 const code = await runCli(process.argv.slice(2), deps);
 io.close();
 process.exitCode = code;

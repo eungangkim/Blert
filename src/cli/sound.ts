@@ -2,6 +2,7 @@ import { BlertError } from '../shared/errors.js';
 import type { SoundKind } from '../shared/types.js';
 import { platformGroup } from '../shared/platform.js';
 import { t } from '../i18n/index.js';
+import { soundList, soundReset, soundSet, soundTheme } from './soundinstall.js';
 import { suggest } from './suggest.js';
 import type { Command, Ctx } from './types.js';
 
@@ -30,19 +31,40 @@ export const testCommand: Command = {
   },
 };
 
+const SUBS = ['on', 'off', 'test', 'set', 'theme', 'reset', 'list'] as const;
+
 export const soundCommand: Command = {
   name: 'sound',
-  usageKeys: ['usage.sound.onoff', 'usage.sound.test'],
-  allowedOptions: [],
-  async run({ rest, deps }: Ctx) {
-    const [subRaw, kindRaw, ...extra] = rest;
-    const sub = ['on', 'off', 'test'].find((s) => s === subRaw?.toLowerCase());
+  usageKeys: ['usage.sound.onoff', 'usage.sound.test', 'usage.sound.set', 'usage.sound.theme', 'usage.sound.reset', 'usage.sound.list'],
+  allowedOptions: ['sha256'],
+  async run({ rest, args, deps }: Ctx) {
+    const [subRaw, kindRaw, second, ...extra] = rest;
+    const sub = SUBS.find((s) => s === subRaw?.toLowerCase());
     if (!sub) {
-      const s = subRaw ? suggest(subRaw, ['on', 'off', 'test']) : undefined;
+      const s = subRaw ? suggest(subRaw, SUBS) : undefined;
       throw new BlertError(s ? 'err.soundSub' : 'err.soundUsage', { value: subRaw ?? '', suggestion: s ?? '' });
     }
-    if (extra.length > 0 || (sub !== 'test' && kindRaw !== undefined)) throw new BlertError('err.soundUsage');
+    const sha256 = args.values.get('sha256');
+    if (sha256 !== undefined && sub !== 'set') throw new BlertError('err.soundShaOnlySet');
 
+    if (sub === 'set') {
+      if (kindRaw === undefined || second === undefined || extra.length > 0) throw new BlertError('err.soundSetUsage');
+      return soundSet(deps, parseKind(kindRaw), second, sha256);
+    }
+    if (sub === 'theme') {
+      if (kindRaw === undefined || second !== undefined) throw new BlertError('err.soundThemeUsage');
+      return soundTheme(deps, kindRaw);
+    }
+    if (sub === 'reset') {
+      if (second !== undefined) throw new BlertError('err.soundResetUsage');
+      return soundReset(deps, kindRaw === undefined || kindRaw.toLowerCase() === 'all' ? 'all' : [parseKind(kindRaw)]);
+    }
+    if (sub === 'list') {
+      if (kindRaw !== undefined) throw new BlertError('err.soundUsage');
+      return soundList(deps);
+    }
+
+    if (second !== undefined || extra.length > 0 || (sub !== 'test' && kindRaw !== undefined)) throw new BlertError('err.soundUsage');
     if (sub === 'on' || sub === 'off') {
       await deps.store.updateConfig((c) => {
         c.soundEnabled = sub === 'on';

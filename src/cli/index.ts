@@ -19,7 +19,7 @@ import { formatLocalDateTime } from './format.js';
 import { RUN_LOCK_STALE_MS } from '../shared/defaults.js';
 import type { Command, Deps } from './types.js';
 
-export type { Deps, Io, PresetService, NotifierPort, Runner, DaemonPort, ServicePort, ChannelPort, Command } from './types.js';
+export type { Deps, Io, PresetService, NotifierPort, Runner, DaemonPort, ServicePort, ChannelPort, DownloaderPort, Command } from './types.js';
 
 /** 명령 레지스트리. 도움말과 오타 제안이 이 목록을 쓴다. */
 export const defaultCommands: Command[] = [initCommand, addCommand, listCommand, delCommand, pauseCommand, resumeCommand, presetCommand, soundCommand, testCommand, runCommand, startCommand, stopCommand, statusCommand, logsCommand, serviceCommand, channelCommand, keyCommand, daemonRunCommand];
