@@ -1,5 +1,5 @@
 import type { Alert, SoundKind } from '../shared/types.js';
-import { t } from '../i18n/index.js';
+import { getLanguage, t, type Language } from '../i18n/index.js';
 import type { NotifyAdapter } from './adapters.js';
 import { captureProcess, runProcess, type CaptureFn, type RunFn } from './proc.js';
 import { sanitizeSpeech, speechText } from './speech.js';
@@ -85,7 +85,10 @@ const LINUX_SPEAK =
   'if command -v spd-say >/dev/null 2>&1; then exec spd-say -w ${BLERT_VOICE:+-y "$BLERT_VOICE"} -- "$BLERT_SPEECH"; else exec espeak-ng ${BLERT_VOICE:+-v "$BLERT_VOICE"} -- "$BLERT_SPEECH"; fi';
 
 export interface VoiceAdapterOptions {
-  engine: Pick<VoiceEngine, 'speak'>;
+  /** list가 있으면, 사용자가 음성을 고르지 않았을 때 현재 언어에 맞는 설치 음성을 자동으로 고른다 (D-129) */
+  engine: Pick<VoiceEngine, 'speak'> & Partial<Pick<VoiceEngine, 'list'>>;
+  /** 현재 메시지 언어. 기본은 i18n의 현재 언어 */
+  language?: () => Language;
   /** 재생할 때마다 설정을 읽는다 (D-117). 설정이 없으면 꺼진 것으로 본다 */
   config: () => Promise<VoiceConfig | undefined>;
   /** 선택한 음성이 없어 기본 음성으로 대신할 때의 안내 (한 번만) */
@@ -95,6 +98,8 @@ export interface VoiceAdapterOptions {
 interface QueueItem {
   text: string;
   voiceName?: string;
+  /** voiceName을 사용자가 고르지 않고 언어에 맞춰 자동으로 골랐는가 */
+  auto?: boolean;
   resolve: () => void;
   reject: (e: unknown) => void;
 }
@@ -110,6 +115,8 @@ export class VoiceAdapter implements NotifyAdapter {
   private queue: QueueItem[] = [];
   private busy = false;
   private warnedMissing = false;
+  /** 언어별로 자동 선택한 음성(없으면 undefined). 설치된 음성은 실행 중에 바뀌지 않는다고 보고 한 번만 조회한다 */
+  private autoVoices = new Map<Language, Promise<string | undefined>>();
 
   constructor(private opts: VoiceAdapterOptions) {}
 
@@ -120,8 +127,10 @@ export class VoiceAdapter implements NotifyAdapter {
     if (!alert) return;
     const text = speechText(alert);
     if (!text) return;
+    const auto = cfg.voiceName ? undefined : await this.autoVoice();
+    const voiceName = cfg.voiceName ?? auto;
     return new Promise<void>((resolve, reject) => {
-      this.queue.push({ text, ...(cfg.voiceName ? { voiceName: cfg.voiceName } : {}), resolve, reject });
+      this.queue.push({ text, ...(voiceName ? { voiceName } : {}), ...(auto ? { auto: true } : {}), resolve, reject });
       while (this.queue.length > MAX_WAITING) this.queue.shift()!.resolve(); // 오래된 것은 버린다
       void this.pump();
     });
@@ -133,7 +142,7 @@ export class VoiceAdapter implements NotifyAdapter {
     try {
       for (let item = this.queue.shift(); item; item = this.queue.shift()) {
         try {
-          await this.say(item.text, item.voiceName);
+          await this.say(item.text, item.voiceName, item.auto);
           item.resolve();
         } catch (e) {
           item.reject(e);
@@ -144,14 +153,32 @@ export class VoiceAdapter implements NotifyAdapter {
     }
   }
 
+  /**
+   * 음성을 고르지 않은 사용자를 위해 현재 언어에 맞는 설치 음성을 고른다 (D-129). 한국어 PC의 기본 음성이 한국어일 때
+   * 영어 문장을 어색하게 읽는 일을 막는다. 맞는 음성이 없거나 조회할 수 없으면 OS 기본 음성을 쓴다.
+   */
+  private autoVoice(): Promise<string | undefined> {
+    const list = this.opts.engine.list?.bind(this.opts.engine);
+    if (!list) return Promise.resolve(undefined);
+    const language = this.opts.language?.() ?? getLanguage();
+    let found = this.autoVoices.get(language);
+    if (!found) {
+      found = list()
+        .then((voices) => voices.find((v) => v.culture?.toLowerCase().split(/[-_]/)[0] === language)?.name)
+        .catch(() => undefined);
+      this.autoVoices.set(language, found);
+    }
+    return found;
+  }
+
   /** 선택한 음성으로 말하고, 실패하면 OS 기본 음성으로 한 번 더 시도한다. 기본 음성으로 되면 안내를 한 번만 한다 (D-117) */
-  private async say(text: string, voiceName?: string): Promise<void> {
+  private async say(text: string, voiceName?: string, auto?: boolean): Promise<void> {
     try {
       await this.opts.engine.speak(text, voiceName);
     } catch (e) {
       if (!voiceName) throw e;
       await this.opts.engine.speak(text); // 이것도 실패하면 그대로 던진다
-      if (!this.warnedMissing) {
+      if (!auto && !this.warnedMissing) {
         this.warnedMissing = true;
         this.opts.warn?.(t('notify.voiceMissing', { name: voiceName }));
       }

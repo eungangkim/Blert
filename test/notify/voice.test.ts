@@ -252,3 +252,84 @@ describe('VoiceEngine 명령 (D-111, D-117)', () => {
     ]);
   });
 });
+
+describe('영어 음성 자동 선택 (D-129)', () => {
+  const voices = [
+    { name: 'Microsoft Heami Desktop', culture: 'ko-KR' },
+    { name: 'Microsoft Zira Desktop', culture: 'en-US' },
+  ];
+  function auto(opts: { list?: () => Promise<typeof voices>; failFor?: (v?: string) => boolean } = {}) {
+    const spoken: { text: string; voiceName?: string }[] = [];
+    const warnings: string[] = [];
+    let lang: 'ko' | 'en' = 'en';
+    let listCalls = 0;
+    const adapter = new VoiceAdapter({
+      engine: {
+        speak: async (text, voiceName) => {
+          if (opts.failFor?.(voiceName)) throw new Error('speak failed');
+          spoken.push({ text, ...(voiceName ? { voiceName } : {}) });
+        },
+        list: async () => {
+          listCalls++;
+          return opts.list ? opts.list() : voices;
+        },
+      },
+      language: () => lang,
+      config: async () => ({ enabled: true, kinds: ['warn'] }),
+      warn: (t) => warnings.push(t),
+    });
+    return { adapter, spoken, warnings, setLang: (l: 'ko' | 'en') => (lang = l), listCalls: () => listCalls };
+  }
+
+  it('AC-113 영어에서 음성을 고르지 않았으면 설치된 영어 음성을 쓴다', async () => {
+    const { adapter, spoken } = auto();
+    await adapter.send([liqAlert()]);
+    expect(spoken[0]!.voiceName).toBe('Microsoft Zira Desktop');
+  });
+
+  it('AC-113 한국어에서는 한국어 음성을 쓰고, 언어가 바뀌면 그 언어의 음성을 쓴다', async () => {
+    const { adapter, spoken, setLang } = auto();
+    setLang('ko');
+    await adapter.send([liqAlert()]);
+    setLang('en');
+    await adapter.send([liqAlert()]);
+    expect(spoken.map((s) => s.voiceName)).toEqual(['Microsoft Heami Desktop', 'Microsoft Zira Desktop']);
+  });
+
+  it('AC-113 사용자가 voice use로 고른 음성이 항상 우선이고 목록을 조회하지 않는다', async () => {
+    const spoken: string[] = [];
+    let listed = false;
+    const adapter = new VoiceAdapter({
+      engine: { speak: async (_t, v) => void spoken.push(v ?? ''), list: async () => ((listed = true), voices) },
+      language: () => 'en',
+      config: async () => ({ enabled: true, kinds: ['warn'], voiceName: 'Microsoft Heami Desktop' }),
+    });
+    await adapter.send([liqAlert()]);
+    expect(spoken).toEqual(['Microsoft Heami Desktop']);
+    expect(listed).toBe(false);
+  });
+
+  it('AC-113 맞는 언어의 음성이 없거나 조회에 실패하면 OS 기본 음성을 쓴다', async () => {
+    const none = auto({ list: async () => [{ name: 'Microsoft Heami Desktop', culture: 'ko-KR' }] });
+    await none.adapter.send([liqAlert()]);
+    expect(none.spoken[0]!.voiceName).toBeUndefined();
+    const failing = auto({ list: async () => Promise.reject(new Error('powershell missing')) });
+    await failing.adapter.send([liqAlert()]);
+    expect(failing.spoken).toHaveLength(1);
+    expect(failing.spoken[0]!.voiceName).toBeUndefined();
+  });
+
+  it('AC-113 설치된 음성은 언어마다 한 번만 조회한다', async () => {
+    const { adapter, listCalls } = auto();
+    for (let i = 0; i < 4; i++) await adapter.send([liqAlert()]);
+    expect(listCalls()).toBe(1);
+  });
+
+  it('AC-113 자동으로 고른 음성이 실패하면 안내 없이 기본 음성으로 다시 시도한다', async () => {
+    const { adapter, spoken, warnings } = auto({ failFor: (v) => v === 'Microsoft Zira Desktop' });
+    await adapter.send([liqAlert()]);
+    expect(spoken).toHaveLength(1);
+    expect(spoken[0]!.voiceName).toBeUndefined();
+    expect(warnings).toEqual([]); // 사용자가 고른 음성이 아니므로 "선택한 음성" 안내는 하지 않는다
+  });
+});
