@@ -1,6 +1,9 @@
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Alert, SoundKind } from '../shared/types.js';
+import { inspectWav } from '../shared/wav.js';
+import { t } from '../i18n/index.js';
 import { runProcess, type RunFn } from './proc.js';
 import { clockHMS, render } from './render.js';
 
@@ -115,6 +118,13 @@ export interface SoundOptions {
   dir?: string;
   platform?: NodeJS.Platform;
   run?: RunFn;
+  /**
+   * 사용자가 등록한 소리 파일의 경로 (v1.1, D-82). 재생할 때마다 부르므로 데몬 실행 중에 바꿔도 바로 반영된다 (D-95).
+   * 등록이 없으면 undefined.
+   */
+  userSound?: (kind: SoundKind) => Promise<string | undefined>;
+  /** 사용자 소리를 쓸 수 없어 번들 소리로 대신할 때의 안내 (종류별 한 번, D-98) */
+  warn?: (text: string) => void;
 }
 
 /** 알림 유형별 WAV 재생 (FR-NOTI-02). 추가 의존성 없이 OS 기본 재생 도구를 쓴다 (B7). */
@@ -123,6 +133,7 @@ export class SoundAdapter implements NotifyAdapter {
   private dir: string;
   private platform: NodeJS.Platform;
   private run: RunFn;
+  private warnedKinds = new Set<SoundKind>();
 
   constructor(private opts: SoundOptions) {
     this.dir = opts.dir ?? DEFAULT_SOUND_DIR;
@@ -136,9 +147,44 @@ export class SoundAdapter implements NotifyAdapter {
     if (kind) await this.play(kind);
   }
 
-  /** 설정과 무관하게 재생한다 (`blert sound test`). 실패하면 Error. */
+  /** 설정과 무관하게 재생한다 (`blert sound test`). 사용자 소리를 먼저, 안 되면 번들 소리로. 실패하면 Error. */
   async play(kind: SoundKind): Promise<void> {
-    const file = join(this.dir, `${kind}.wav`);
+    const user = await this.usableUserSound(kind);
+    if (user) {
+      try {
+        return await this.playFile(user);
+      } catch {
+        this.fallbackNotice(kind);
+      }
+    }
+    return this.playFile(join(this.dir, `${kind}.wav`));
+  }
+
+  /** 등록된 사용자 소리가 있고 지금도 정상 WAV이면 경로. 없으면 undefined, 파일이 없거나 손상됐으면 안내 후 undefined (D-98) */
+  private async usableUserSound(kind: SoundKind): Promise<string | undefined> {
+    let path: string | undefined;
+    try {
+      path = await this.opts.userSound?.(kind);
+    } catch {
+      path = undefined; // 설정을 읽지 못해도 알림은 번들 소리로 계속한다
+    }
+    if (!path) return undefined;
+    try {
+      if (inspectWav(await readFile(path)).ok) return path;
+    } catch {
+      // 파일이 없거나 읽을 수 없음
+    }
+    this.fallbackNotice(kind);
+    return undefined;
+  }
+
+  private fallbackNotice(kind: SoundKind): void {
+    if (this.warnedKinds.has(kind)) return;
+    this.warnedKinds.add(kind);
+    this.opts.warn?.(t('notify.userSoundFallback', { kind }));
+  }
+
+  private async playFile(file: string): Promise<void> {
     if (this.platform === 'win32') {
       return this.run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', '(New-Object System.Media.SoundPlayer $env:BLERT_SOUND).PlaySync()'], { BLERT_SOUND: file });
     }

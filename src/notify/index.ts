@@ -221,6 +221,8 @@ export interface CreateNotifierOptions {
   platform?: NodeJS.Platform;
   run?: RunFn;
   soundDir?: string;
+  /** 사용자가 등록한 소리 파일 경로를 재생할 때마다 알려 준다 (v1.1, D-82·D-95). 없으면 번들 소리만 쓴다 */
+  userSound?: (kind: SoundKind) => Promise<string | undefined>;
   /** 외부 알림 채널 (v1.0). 없으면 어댑터를 만들지 않는다. 등록 여부는 보내는 순간 확인한다 (D-69) */
   channel?: { source: ChannelSource; client?: TelegramClientOptions };
 }
@@ -228,7 +230,7 @@ export interface CreateNotifierOptions {
 /** 기본 어댑터(콘솔·데스크톱·소리)로 Notifier를 만든다 */
 export function createNotifier(o: CreateNotifierOptions): Notifier {
   const clock = o.clock ?? systemClock;
-  const sound = new SoundAdapter({ enabled: o.soundEnabled, dir: o.soundDir, platform: o.platform, run: o.run });
+  const sound = new SoundAdapter({ enabled: o.soundEnabled, dir: o.soundDir, platform: o.platform, run: o.run, userSound: o.userSound, warn: o.out });
   const adapters: NotifyAdapter[] = [
     ...(o.console === false ? [] : [new ConsoleAdapter(o.out, () => clock.now())]),
     new DesktopAdapter(o.platform, o.run),
