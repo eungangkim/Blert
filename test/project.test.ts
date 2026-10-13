@@ -147,17 +147,17 @@ describe('배포 점검 (NFR-SEC-03, NFR-SEC-04, D-75)', () => {
 describe('수용 기준 커버리지 (CLAUDE.md 테스트 규칙)', () => {
   const names = files(join(ROOT, 'test'), /\.test\.ts$/).flatMap((f) => [...readFileSync(f, 'utf8').matchAll(/\bit\('(AC-\d{2,3})[ ,]/g)].map((m) => m[1]!));
 
-  it('AC-01 ~ AC-116 중 수동(AC-25, AC-51, AC-60, AC-71, AC-72, AC-84, AC-94, AC-105, AC-106)을 뺀 항목은 이름이 해당 ID로 시작하는 자동 테스트가 하나 이상 있다', () => {
+  it('AC-01 ~ AC-131 중 수동(AC-25, AC-51, AC-60, AC-71, AC-72, AC-84, AC-94, AC-105, AC-106, AC-117, AC-118)을 뺀 항목은 이름이 해당 ID로 시작하는 자동 테스트가 하나 이상 있다', () => {
     // 아직 구현하지 않은 항목. 구현하면 여기서 지운다 (마지막 단계에서 비어 있어야 한다).
-    const PENDING: string[] = [];
-    const ids = Array.from({ length: 116 }, (_, i) => i + 1)
-      .filter((n) => ![25, 51, 60, 71, 72, 84, 94, 105, 106].includes(n))
+    const PENDING: string[] = ['AC-120', 'AC-125', 'AC-126', 'AC-127', 'AC-128', 'AC-129', 'AC-130', 'AC-131'];
+    const ids = Array.from({ length: 131 }, (_, i) => i + 1)
+      .filter((n) => ![25, 51, 60, 71, 72, 84, 94, 105, 106, 117, 118].includes(n))
       .map((n) => `AC-${String(n).padStart(2, '0')}`)
       .filter((id) => !PENDING.includes(id));
     expect(ids.filter((id) => !names.includes(id))).toEqual([]);
   });
 
-  it('현재 목표(v1.4)를 넘는 수용 기준(AC-119 이상) 테스트는 없다', () => {
-    expect(names.filter((n) => Number(n.slice(3)) > 118)).toEqual([]);
+  it('현재 목표(v1.5)를 넘는 수용 기준(AC-133 이상) 테스트는 없다', () => {
+    expect(names.filter((n) => Number(n.slice(3)) > 132)).toEqual([]);
   });
 });
