@@ -1,5 +1,5 @@
 import { BlertError } from '../shared/errors.js';
-import { ASSET_NAME, LIQ_MAX_PCT_EXCLUSIVE } from '../shared/limits.js';
+import { ASSET_NAME, LIQ_MAX_PCT_EXCLUSIVE, validLiqStages } from '../shared/limits.js';
 import type { Rule, SoundKind } from '../shared/types.js';
 import { DEFAULT_REPEAT } from '../shared/defaults.js';
 import { t } from '../i18n/index.js';
@@ -89,6 +89,15 @@ export function buildRule(rest: string[], values: Map<string, string>): RuleDraf
       need(a.length === 2);
       const { market, symbol } = parseSymbol(a[0]!);
       if (market !== 'futures') throw new BlertError('err.liqFutures', { value: a[0]! });
+      if (a[1]!.includes(',')) {
+        // 단계별 청산 경고 (D-118): 큰 값부터 2~4개. 반복은 쿨다운만 쓴다 (D-119)
+        const stages = a[1]!.split(',').map((p) => parsePercent(p.trim()));
+        if (!validLiqStages(stages)) throw new BlertError('err.liqStages', { value: a[1]! });
+        const mode = values.get('mode');
+        if (mode !== undefined && !mode.startsWith('cooldown:')) throw new BlertError('err.liqStagesMode', { value: mode });
+        draft = { type, market, symbol, condition: { type, pct: stages[0]!, stages } };
+        break;
+      }
       const pct = parsePercent(a[1]!);
       if (pct >= LIQ_MAX_PCT_EXCLUSIVE) throw new BlertError('err.liqRange', { value: a[1]! });
       draft = { type, market, symbol, condition: { type, pct } };

@@ -29,7 +29,8 @@ export type Condition =
   | { type: 'fill' }
   | { type: 'balance'; asset: string; pct: number }
   // v0.3 청산가 근접: 마크 가격과 청산가의 거리(%)가 pct 이하 (D-46). 선물 전용, symbol은 지정한 심볼 (D-51)
-  | { type: 'liq'; pct: number };
+  // v1.3 단계별 청산 경고(D-118): stages는 내림차순 퍼센트 2~4개이고 첫 값은 pct와 같다. 없으면 단일 임계값(D-47)
+  | { type: 'liq'; pct: number; stages?: number[] };
 
 export type RuleType = Condition['type'];
 
@@ -51,4 +52,6 @@ export interface RuleState {
   ruleId: number;
   lastFiredAt?: string;
   armed: boolean;
+  /** 단계별 청산 경고(D-119)에서 지금 들어와 있는 단계(1부터). 없거나 0이면 밖 */
+  liqStage?: number;
 }

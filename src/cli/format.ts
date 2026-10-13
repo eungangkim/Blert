@@ -21,7 +21,7 @@ export function describeCondition(c: Condition): string {
     case 'balance':
       return t('cond.balance', { asset: c.asset === '*' ? t('asset.all') : c.asset, pct: c.pct });
     case 'liq':
-      return t('cond.liq', { pct: c.pct });
+      return c.stages ? t('cond.liq.stages', { stages: c.stages.map((p) => `${p}%`).join(', '), count: c.stages.length }) : t('cond.liq', { pct: c.pct });
   }
 }
 

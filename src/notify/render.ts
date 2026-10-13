@@ -40,6 +40,7 @@ export function render(alert: Alert): { title: string; body: string } {
     if (k.endsWith('Ms') && typeof v === 'number') params[k.slice(0, -2)] = durationText(v);
   }
   if (params.market === 'spot' || params.market === 'futures') params.market = t(`market.${params.market}`);
+  if (params.level === 'caution' || params.level === 'danger' || params.level === 'urgent') params.level = t(`level.${params.level}`);
   if (params.side === 'BUY' || params.side === 'SELL' || params.side === 'LONG' || params.side === 'SHORT') params.side = t(`side.${params.side}`);
   const bodyKey = alert.titleKey.replace(/\.title$/, '.body');
   const body = bodyKey === alert.titleKey ? '' : t(bodyKey, params);

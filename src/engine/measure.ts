@@ -158,6 +158,33 @@ export function measureLiq(rule: Rule, positions: PositionView[], mark: number |
   };
 }
 
+/** 단계 알림의 심각도. 첫 단계는 주의, 마지막 단계는 긴급, 그 사이는 위험 (D-120). 문장은 notify가 번역한다 */
+export type LiqLevel = 'caution' | 'danger' | 'urgent';
+
+export function liqLevel(depth: number, total: number): LiqLevel {
+  return depth >= total ? 'urgent' : depth <= 1 ? 'caution' : 'danger';
+}
+
+/** 거리가 들어와 있는 가장 깊은 단계(1부터). 첫 단계 밖이면 0 (D-119) */
+export function liqDepth(stages: readonly number[], distance: number): number {
+  let depth = 0;
+  for (const [i, pct] of stages.entries()) if (distance <= pct) depth = i + 1;
+  return depth;
+}
+
+/** 단계별 청산 경고 알림 (FR-ALERT-06, D-120). 소리는 warn 하나를 쓰고 문구에 `n/N단계`와 심각도를 넣는다 */
+export function toLiqStageAlert(rule: Rule, m: Measurement, depth: number, firedAtIso: string): Alert {
+  const stages = rule.condition.type === 'liq' ? (rule.condition.stages ?? []) : [];
+  return {
+    ruleId: rule.id,
+    kind: 'warn',
+    titleKey: 'alert.liq.stage.title',
+    params: { ...m.params, threshold: formatPctExact(stages[depth - 1] ?? m.threshold), stage: depth, stages: stages.length, level: liqLevel(depth, stages.length) },
+    firedAt: firedAtIso,
+    ...(rule.sound ? { sound: rule.sound } : {}),
+  };
+}
+
 /** 체결 알림 (FR-ACC-01, FR-ACC-03). 이벤트마다 발동한다. 선물 체결은 제목에 '선물'을 붙인다. */
 export function measureFill(rule: Rule, e: EventOf<'account.fill'>): Measurement | null {
   if (rule.condition.type !== 'fill') return null;

@@ -5,7 +5,9 @@ import type { Logger } from '../shared/logger.js';
 import { iso } from '../shared/clock.js';
 import type { Store } from '../store/index.js';
 import { MinuteVolumes, PriceHistory, MAX_STALE_MS, bucketFor } from './history.js';
-import { measureBalance, measureChange, measureFill, measureFunding, measureLiq, measurePrice, measureVolume, rearmed, satisfied, toAlert, type Measurement } from './measure.js';
+import { LIQ_REARM_FACTOR } from '../shared/limits.js';
+import { DEFAULT_REPEAT } from '../shared/defaults.js';
+import { liqDepth, measureBalance, measureChange, measureFill, measureFunding, measureLiq, measurePrice, measureVolume, rearmed, satisfied, toAlert, toLiqStageAlert, type Measurement } from './measure.js';
 
 const MINUTE = 60_000;
 const LOG = 'engine';
@@ -235,8 +237,43 @@ export class Engine {
     const views = [...sides].map(([side, p]) => ({ side, size: p.size, liqPrice: p.liqPrice }));
     for (const rule of rules) {
       const m = measureLiq(rule, views, this.marks.get(symbol));
-      if (m) this.apply(rule, m, ts, out);
+      if (!m) continue;
+      if (rule.condition.type === 'liq' && rule.condition.stages) this.applyLiqStages(rule, rule.condition.stages, m, ts, out);
+      else this.apply(rule, m, ts, out);
     }
+  }
+
+  /**
+   * 단계별 청산 경고 (FR-ALERT-06, D-119). 더 깊은 단계로 들어가면 쿨다운과 무관하게 즉시 알리고, 같은 단계에 머무르면
+   * 쿨다운(기본 5분)마다 반복한다. 얕은 단계로 돌아오면 알리지 않고 단계만 낮춘다. 거리가 첫 임계값의 1.1배를 넘으면 재무장한다.
+   */
+  private applyLiqStages(rule: Rule, stages: number[], m: Measurement, ts: number, out: Alert[]): void {
+    const st = this.states.get(rule.id) ?? { ruleId: rule.id, armed: true };
+    this.states.set(rule.id, st);
+    const prev = st.liqStage ?? 0;
+    const depth = liqDepth(stages, m.value);
+
+    if (depth === 0) {
+      if (prev > 0 && m.value > stages[0]! * LIQ_REARM_FACTOR) {
+        st.liqStage = 0; // 완전히 벗어났다: 다시 들어오면 첫 단계부터 알린다
+        this.persist();
+      }
+      return;
+    }
+    if (depth < prev) {
+      st.liqStage = depth; // 조용히 단계만 낮춘다. 다시 깊어지면 알린다
+      this.persist();
+      return;
+    }
+    const cooldown = rule.repeat.kind === 'cooldown' ? rule.repeat.ms : (DEFAULT_REPEAT.liq as { ms: number }).ms;
+    if (depth === prev && st.lastFiredAt && ts - Date.parse(st.lastFiredAt) < cooldown) return;
+
+    st.liqStage = depth;
+    st.lastFiredAt = iso(ts);
+    this.persist();
+    const alert = toLiqStageAlert(rule, m, depth, st.lastFiredAt);
+    out.push(alert);
+    this.emit(alert);
   }
 
   /** 주문 체결: 이벤트마다 알린다. 규칙은 심볼 하나 또는 전체('*')다. */

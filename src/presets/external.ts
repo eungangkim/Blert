@@ -1,5 +1,5 @@
 import { DEFAULT_REPEAT } from '../shared/defaults.js';
-import { ASSET_NAME, HYSTERESIS_MAX_PCT, LIQ_MAX_PCT_EXCLUSIVE, MULTIPLE_MIN_EXCLUSIVE, SYMBOL_BODY, inDurationRange, isFullSymbol } from '../shared/limits.js';
+import { ASSET_NAME, HYSTERESIS_MAX_PCT, LIQ_MAX_PCT_EXCLUSIVE, MULTIPLE_MIN_EXCLUSIVE, SYMBOL_BODY, inDurationRange, isFullSymbol, validLiqStages } from '../shared/limits.js';
 import type { Condition, Market, RepeatPolicy, Rule, RuleType, SoundKind } from '../shared/types.js';
 
 /** 외부 프리셋 파일의 한도 (D-101, D-102) */
@@ -89,6 +89,11 @@ function parseCondition(type: RuleType, market: Market, symbol: string, c: Recor
       if (market !== 'futures') return bad(`${at.replace('.condition', '')}.market`);
       if (!isFullSymbol(symbol)) return bad(`${at.replace('.condition', '')}.symbol`);
       if (!num(c.pct) || !(c.pct > 0) || c.pct >= LIQ_MAX_PCT_EXCLUSIVE) return bad(`${at}.pct`);
+      if (c.stages !== undefined) {
+        // 단계별 청산 경고 (D-118, D-121): 2~4개 내림차순이고 첫 값은 pct와 같다
+        if (!Array.isArray(c.stages) || !c.stages.every(num) || !validLiqStages(c.stages) || c.stages[0] !== c.pct) return bad(`${at}.stages`);
+        return { ok: true, value: { type, pct: c.pct, stages: [...c.stages] } };
+      }
       return { ok: true, value: { type, pct: c.pct } };
     case 'fill': {
       const base = at.replace('.condition', '');
@@ -121,6 +126,8 @@ function parseRule(v: unknown, i: number): Result<ExternalRule> {
   if (!cond.ok) return cond;
   const repeat = parseRepeat(v.repeat, type, `${at}.repeat`);
   if (!repeat.ok) return repeat;
+  // 단계별 청산 경고는 쿨다운 반복만 쓴다 (D-119, `blert add`와 같은 규칙)
+  if (cond.value.type === 'liq' && cond.value.stages && v.repeat !== undefined && repeat.value.kind !== 'cooldown') return bad(`${at}.repeat.kind`);
   if (v.sound !== undefined && (typeof v.sound !== 'string' || !SOUNDS.includes(v.sound))) return bad(`${at}.sound`);
   if (v.name !== undefined && !str(v.name, EXTERNAL_PRESET_LIMITS.name)) return bad(`${at}.name`);
 

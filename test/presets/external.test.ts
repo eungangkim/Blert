@@ -125,3 +125,35 @@ describe('외부 프리셋 검증 (D-79, D-101~D-104)', () => {
     for (const word of ['manual', 'enabled', 'createdAt', 'extra', 'hacked', '"id"', 'source']) expect(out, word).not.toContain(word);
   });
 });
+
+describe('외부 프리셋의 단계별 청산 경고 (D-121)', () => {
+  const liq = (condition: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({ type: 'liq', market: 'futures', symbol: 'BTCUSDT', condition: { type: 'liq', ...condition }, ...extra });
+
+  it('AC-104 stages는 단일 임계값과 같은 한도로 받고, 첫 값은 pct와 같아야 한다', () => {
+    const r = parseExternalPreset(presetText({ rules: [liq({ pct: 10, stages: [10, 5, 2] })] }));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.rules[0]!.condition).toEqual({ type: 'liq', pct: 10, stages: [10, 5, 2] });
+  });
+
+  it.each([
+    ['오름차순', { pct: 2, stages: [2, 5, 10] }],
+    ['1단계', { pct: 10, stages: [10] }],
+    ['5단계', { pct: 50, stages: [50, 40, 30, 20, 10] }],
+    ['첫 값과 pct 불일치', { pct: 8, stages: [10, 5] }],
+    ['숫자가 아님', { pct: 10, stages: [10, '5'] }],
+    ['배열이 아님', { pct: 10, stages: '10,5' }],
+  ])('AC-104 %s는 거부하고 stages 위치를 알려 준다', (_n, condition) => {
+    expect(field(withRule(liq(condition)))).toBe('rules[0].condition.stages');
+  });
+
+  it('AC-104 pct가 100 이상이면 pct 위치로 거부', () => {
+    expect(field(withRule(liq({ pct: 100, stages: [100, 5] })))).toBe('rules[0].condition.pct');
+  });
+
+  it('AC-104 단계 규칙의 repeat는 쿨다운만 받는다', () => {
+    const c = { pct: 10, stages: [10, 5] };
+    expect(parseExternalPreset(presetText({ rules: [liq(c, { repeat: { kind: 'cooldown', ms: 600000 } })] })).ok).toBe(true);
+    expect(field(withRule(liq(c, { repeat: { kind: 'once' } })))).toBe('rules[0].repeat.kind');
+    expect(field(withRule(liq(c, { repeat: { kind: 'hysteresis', widthPct: 10 } })))).toBe('rules[0].repeat.kind');
+  });
+});

@@ -23,6 +23,18 @@ export const HYSTERESIS_MAX_PCT = 100;
 /** 청산가 근접 거리(%)는 이 값 미만이어야 한다 */
 export const LIQ_MAX_PCT_EXCLUSIVE = 100;
 
+/** 단계별 청산 경고의 단계 수 (D-118) */
+export const LIQ_STAGES_MIN = 2;
+export const LIQ_STAGES_MAX = 4;
+/** 거리가 첫 임계값의 이 배수를 넘으면 단계를 완전히 재무장한다 (D-119) */
+export const LIQ_REARM_FACTOR = 1.1;
+
+/** 단계 퍼센트가 올바른가: 2~4개, 모두 0보다 크고 100 미만, 엄격히 내림차순 (D-118) */
+export function validLiqStages(stages: readonly number[]): boolean {
+  if (stages.length < LIQ_STAGES_MIN || stages.length > LIQ_STAGES_MAX) return false;
+  return stages.every((p, i) => Number.isFinite(p) && p > 0 && p < LIQ_MAX_PCT_EXCLUSIVE && (i === 0 || p < stages[i - 1]!));
+}
+
 /** 스테이블 견적으로 끝나는 전체 심볼인가 (예: BTCUSDT). 코인 이름만(BTC)이면 false */
 export function isFullSymbol(s: string): boolean {
   return SYMBOL_BODY.test(s) && STABLE_QUOTES.some((q) => s.endsWith(q) && s.length > q.length);
