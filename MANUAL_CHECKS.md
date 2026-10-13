@@ -648,3 +648,112 @@ blert는 이를 피하는 방식(`-EncodedCommand`·WinRT 미사용)으로 알�
 ## ✅ 확인함 (Claude)
 
 2026-10-13, Windows 11, 빌드한 `dist/index.js`, 임시 `APPDATA`. `voice list`(이 PC의 Heami·Zira 음성 조회) → `voice on` → `voice kinds warn,account,up` → `voice use microsoft zira desktop`(대소문자·공백 허용) → `voice list`(선택 표시 `*`) → `voice use Nobody`(설치된 음성 안내, 종료 코드 1) → `voice off` → `add liq f:BTC 10%,5%,2%` → `list`(`(3단계)`)가 모두 기대대로 동작했습니다. 실제 소리는 귀로 확인할 수 없고 PC에서 소리가 나지 않게 하려고 `voice test`는 실행하지 않았습니다(위 1번으로 넘깁니다).
+
+---
+
+# v1.4 — 영어 지원 (FR-I18N-01, AC-107 ~ AC-118)
+
+## 한눈에 보기
+
+| 항목 | 상태 | 비고 |
+| --- | --- | --- |
+| AC-107 언어 결정 순서 (`BLERT_LANG` > 설정 > OS 로캘 > ko) | ✅ 확인함 | 자동 테스트 + 실제 실행: OS 언어(`LC_ALL`)가 영어면 영어, 설정 `lang en`/`lang ko`, `BLERT_LANG=en` 모두 기대대로 |
+| AC-108 `blert lang` / `lang en` / 잘못된 값 | ✅ 확인함 | 자동 테스트 + 실제 실행 |
+| AC-109 `ko.json`·`en.json` 키·자리표시자 일치, 한글 없음, 누락 시 한국어 대체 | ✅ 확인함 (자동 테스트) | 567개(복수형 14개 포함) |
+| AC-110 모든 유형의 알림이 영어로 표시, 복수형·단위 | ✅ 확인함 (자동 테스트) | 알림 유형별 표시·`1 alert`/`3 alerts`·`5m`/`1h` |
+| AC-111 영어 오류 문구에 해결 방법과 예시(`e.g.`) | ✅ 확인함 (자동 테스트) | `err.*`·`store.*` 전부 |
+| AC-112 `init` 첫 질문이 언어 | ✅ 확인함 (자동 테스트) | 선택·빈 입력·입력 종료·잘못된 답·`BLERT_LANG`·저장된 설정 |
+| AC-113 영어 음성 자동 선택 | ✅ 확인함 (자동 테스트) | 🖐️ 실제 음성은 아래 2번 |
+| AC-114 영어 도움말·채널·프리셋·소리·음성 안내 | ✅ 확인함 | 자동 테스트 + 실제 실행(`BLERT_LANG=en`로 `--help`, `add`, `list`, `preset list`, `voice list`, `sound list`, 오류) |
+| AC-115 감시 실행 중 `lang` 변경 시 재시작 안내 | ✅ 확인함 (자동 테스트) | 실행 잠금으로 실행 중인 감시를 흉내 냄. 🖐️ 실제 데몬은 아래 3번 |
+| AC-116 한국어로 고정한 기존 테스트 전체 | ✅ 확인함 | AC-01~106 테스트 모두 한국어 고정 상태에서 통과 |
+| AC-117 **영어 문구 검토** (핵심 43개) | 🖐️ 수동 확인 필요 | 아래 검토표 |
+| AC-118 영어 음성·`README.en.md` | 🖐️ 수동 확인 필요 | 아래 1·2번 |
+
+## 🖐️ 직접 확인해 주세요 (남은 버전 업그레이드가 끝난 뒤)
+
+1. **README.en.md 읽기 (약 5분)**: GitHub에서 `README.en.md`가 한국어 `README.md`와 같은 내용으로 자연스럽게 읽히는지, 맨 위 `한국어 · English` 링크가 서로 오가는지 확인합니다.
+2. **AC-118 — 영어 음성 (약 2분)**: `blert lang en` → `blert voice on` → `blert voice test` — 음성을 고르지 않았어도 **영어 음성(Zira)** 으로 "This is a blert voice test…"가 들려야 합니다. `blert lang ko` 후 `blert voice test`는 한국어(Heami)로 들려야 합니다. `blert voice use <이름>`으로 고른 음성은 언어와 상관없이 우선합니다.
+3. **AC-115 — 실행 중인 감시**: `blert start` 후 `blert lang en`을 실행하면 "A running monitor keeps the language it started with…" 안내가 나와야 합니다. `blert stop` → `blert start` 뒤에 `blert test warn`의 알림이 영어로 나오는지 확인합니다. 끝나면 `blert lang ko`.
+4. **AC-117 — 아래 검토표**: 한국어와 영어를 나란히 읽고 어색한 문구를 알려 주세요. 용어는 다음으로 통일했습니다: 알림=alert, 청산가=liquidation price, 마크 가격=mark price, 펀딩비=funding rate, 쿨다운=cooldown, 히스테리시스=hysteresis, 현물=spot, 선물=futures, 프리셋=preset, 채널=channel, 데몬=background monitor, 감시=monitoring, 키체인=keychain, 자동 시작=automatic start(at login).
+
+## AC-117 — 영어 문구 검토표
+
+`{...}`는 실제 값이 들어가는 자리입니다. 고칠 문구는 번호와 원하는 표현을 알려 주시면 `en.json`에 반영합니다(키·자리표시자는 테스트가 지켜 줍니다).
+
+### 알림 (화면에 가장 자주 보이는 문구)
+
+| # | 키 | 한국어 | English | 확인 |
+| --- | --- | --- | --- | --- |
+| 1 | `alert.price.above.title` | {coin} {target} 돌파 | {coin} broke above {target} | ☐ |
+| 2 | `alert.price.below.title` | {coin} {target} 이탈 | {coin} fell below {target} | ☐ |
+| 3 | `alert.change.title` | {coin} {window} {pct} | {coin} {pct} in {window} | ☐ |
+| 4 | `alert.volume.title` | {coin} 거래량 {ratio}배 급증 | {coin} volume surged {ratio}x | ☐ |
+| 5 | `alert.funding.above.title` | {coin} 선물 펀딩비 {rate} | {coin} futures funding rate {rate} | ☐ |
+| 6 | `alert.fill.title` | {coin} {side} 체결 | {coin} {side} filled | ☐ |
+| 7 | `alert.balance.title` | {asset} 잔고 {pct} | {asset} balance {pct} | ☐ |
+| 8 | `alert.liq.title` | {coin} 선물 청산가까지 {distance} | {coin} futures {distance} from liquidation | ☐ |
+| 9 | `alert.liq.stage.title` | {coin} 선물 청산 {level} {stage}/{stages}단계 · 청산가까지 {distance} | {coin} futures liquidation {level} {stage}/{stages} · {distance} from liquidation | ☐ |
+| 10 | `alert.liq.stage.body` | {side} 청산가 {liq} · 마크 {mark} {quote} · 기준 {threshold} 이내 | {side} liquidation price {liq} · mark {mark} {quote} · within {threshold} | ☐ |
+| 11 | `alert.batch.title` | 알림 {count}건 | {count} alerts | ☐ |
+| 12 | `alert.gap.title` | 감시 중단 구간 있음 | There was a gap in monitoring | ☐ |
+| 13 | `alert.conn.down.title` | 바이낸스 연결 끊김 {minutes}분 | Binance disconnected for {minutes} min | ☐ |
+| 14 | `alert.start.title` | blert 감시 시작 | blert monitoring started | ☐ |
+| 15 | `alert.test.body` | {kind} 알림입니다. 이 알림이 보이면 정상입니다. | This is a {kind} alert. If you can see it, everything works. | ☐ |
+
+### 처음 쓸 때 (도움말·init)
+
+| # | 키 | 한국어 | English | 확인 |
+| --- | --- | --- | --- | --- |
+| 16 | `help.title` | blert — 바이낸스 현물·선물 알림을 내 PC에서 받는 CLI | blert — a CLI that delivers Binance spot and futures alerts on your own PC | ☐ |
+| 17 | `init.disclaimer` | blert는 투자 조언이 아니며, 알림 누락·지연으로 생긴 손실에 책임지지 않습니다.<br>모든 설정과 데이터는 이 PC에만 저장되고, 바이낸스 외 서버로는 아무것도 보내지 않습니다. | blert is not investment advice, and it is not responsible for losses caused by missed or delayed alerts.<br>All settings and data stay on this PC, and nothing is sent to any server other than Binance. | ☐ |
+| 18 | `init.askAgree` | 위 내용에 동의하십니까? (y/n)  | Do you agree with the above? (y/n)  | ☐ |
+| 19 | `init.askSound` | 알림 소리를 켤까요? (Y/n)  | Turn on alert sounds? (Y/n)  | ☐ |
+| 20 | `init.done` | 초기 설정을 마쳤습니다. 프리셋으로 알림 {count}개를 등록했습니다. | Setup is complete. Registered {count} alerts from the preset. | ☐ |
+| 21 | `init.next` | 다음 단계:<br>  blert test   알림이 뜨는지 확인<br>  blert run    감시 시작 | Next steps:<br>  blert test   check that alerts appear<br>  blert run    start monitoring | ☐ |
+
+### 자주 보는 오류
+
+| # | 키 | 한국어 | English | 확인 |
+| --- | --- | --- | --- | --- |
+| 22 | `err.symbol` | 심볼 `{value}`을(를) 해석할 수 없습니다. 영문 대문자·숫자 2~20자로 입력하고, 선물은 앞에 f:를 붙이세요. 예: BTC, ETHUSDC, f:BTC | Cannot understand the symbol `{value}`. Use 2-20 uppercase letters or digits, and put f: in front for futures. e.g. BTC, ETHUSDC, f:BTC | ☐ |
+| 23 | `err.price` | 가격 `{value}`이(가) 올바르지 않습니다. 0보다 큰 숫자를 쉼표 없이 입력하세요. 예: blert add price BTC above 70000 | The price `{value}` is not valid. Enter a number greater than 0 without commas. e.g. blert add price BTC above 70000 | ☐ |
+| 24 | `err.unknownCommand` | 알 수 없는 명령입니다: {input}. `blert --help`로 전체 명령을 확인하세요. 예: blert list | Unknown command: {input}. See all commands with `blert --help`. e.g. blert list | ☐ |
+| 25 | `err.runNoRules` | 감시할 활성 알림이 없습니다. 알림을 추가하거나 일시정지한 알림을 재개하세요. 예: blert add price BTC above 70000 또는 blert preset install major-swing | There are no active alerts to monitor. Add an alert or resume a paused one. e.g. blert add price BTC above 70000 or blert preset install major-swing | ☐ |
+| 26 | `err.startConnect` | 바이낸스에 연결하지 못했습니다({streams}). 인터넷 연결과 방화벽을 확인하세요(stream.binance.com, fstream.binance.com 접속 필요). 예: 브라우저에서 https://api.binance.com/api/v3/ping 열기 | Could not connect to Binance ({streams}). Check your internet connection and firewall (stream.binance.com and fstream.binance.com must be reachable). e.g. open https://api.binance.com/api/v3/ping in a browser | ☐ |
+| 27 | `err.keyDenied` | 이 키는 읽기 전용이 아니어서 저장·사용하지 않습니다(켜진 권한: {fields}). 바이낸스 API 관리에서 읽기 권한만 남기고 거래·출금·마진·선물 권한을 끈 키를 만들어 다시 등록하세요. 예: 'Enable Reading'만 켜고 허용 IP를 제한한 새 Ed25519 키 | This key is not read-only, so it is not saved or used (permissions enabled: {fields}). In Binance API Management, create a key with only reading enabled and trading, withdrawal, margin and futures turned off, then register it again. e.g. a new Ed25519 key with only 'Enable Reading' on and restricted IPs | ☐ |
+| 28 | `err.presetHash` | 받은 파일의 해시가 지정한 값과 다릅니다. 설치하지 않았습니다. 지정: {expected} / 실제: {actual}. 주소와 해시를 같은 곳에서 복사했는지 확인하세요. 예: blert preset install https://example.com/preset.json --sha256 <사이트에 적힌 해시> | The hash of the downloaded file differs from the one you gave, so nothing was installed. Given: {expected} / Actual: {actual}. Check that the URL and the hash were copied from the same place. e.g. blert preset install https://example.com/preset.json --sha256 <hash shown on the site> | ☐ |
+
+### 안내·경고
+
+| # | 키 | 한국어 | English | 확인 |
+| --- | --- | --- | --- | --- |
+| 29 | `notify.desktopFailed` | 데스크톱 알림을 표시하지 못해 콘솔로 대신 보여줍니다({reason}). {guide} 예: blert test | Could not show the desktop notification, so it is shown in the console instead ({reason}). {guide} e.g. blert test | ☐ |
+| 30 | `notify.userSoundFallback` | 등록한 '{kind}' 소리를 재생할 수 없어 기본 소리로 대신합니다. 파일이 지워지거나 손상됐을 수 있습니다. 다시 등록하거나 되돌리세요. 예: blert sound reset {kind} | Cannot play your '{kind}' sound, so the default sound is used instead. The file may have been deleted or damaged. Register it again or reset it. e.g. blert sound reset {kind} | ☐ |
+| 31 | `notify.voiceMissing` | 선택한 음성 `{name}`을(를) 쓸 수 없어 기본 음성으로 대신합니다. 음성을 다시 고르세요. 예: blert voice list | The selected voice `{name}` cannot be used, so the default voice is used instead. Choose a voice again. e.g. blert voice list | ☐ |
+| 32 | `key.ipWarning` | 경고: 이 키에는 허용 IP 제한이 없습니다. 키가 유출되면 어디서든 읽기 요청을 보낼 수 있습니다. 바이낸스 API 관리에서 '허용 IP 제한'을 켜는 것을 권장합니다. | Warning: this key has no allowed-IP restriction. If it leaks, anyone can send read requests from anywhere. We recommend turning on 'Restrict access to trusted IPs only' in Binance API Management. | ☐ |
+| 33 | `lang.restart` | 실행 중인 감시는 시작할 때의 언어를 계속 씁니다. 새 언어로 알림을 받으려면 다시 시작하세요. 예: blert stop 다음 blert start | A running monitor keeps the language it started with. Restart it to get alerts in the new language. e.g. blert stop, then blert start | ☐ |
+| 34 | `channel.disclosure2` | 켜면 알림 문구(가격 알림, 감시 중단 경고)가 텔레그램 서버를 거쳐 내 폰으로 전달됩니다. 문구가 텔레그램 서버에 남을 수 있습니다. | When on, alert text (price alerts, monitoring gap warnings) is delivered to your phone through Telegram's servers. The text may remain on Telegram's servers. | ☐ |
+
+### 상태·결과
+
+| # | 키 | 한국어 | English | 확인 |
+| --- | --- | --- | --- | --- |
+| 35 | `preset.ext.summary` | 프리셋 '{name}' ({slug}) v{version}<br>  출처: {origin}<br>  라이선스: {license}<br>  규칙 {count}개: {types}<br>  sha256: {sha} | Preset '{name}' ({slug}) v{version}<br>  Source: {origin}<br>  License: {license}<br>  {count} rules: {types}<br>  sha256: {sha} | ☐ |
+| 36 | `preset.install.done` | 프리셋 `{slug}`({name})을 설치했습니다. 알림 {count}개를 등록했습니다. `blert list`로 확인하세요. | Installed the preset `{slug}` ({name}). Registered {count} alerts. See them with `blert list`. | ☐ |
+| 37 | `sound.set.done` | '{kind}' 소리를 등록했습니다({sec}초). 들어 보기: blert sound test {kind} / 되돌리기: blert sound reset {kind} | Registered the '{kind}' sound ({sec}s). Listen: blert sound test {kind} / Reset: blert sound reset {kind} | ☐ |
+| 38 | `voice.on.done` | 음성 알림을 켰습니다. 읽는 종류: {kinds}. 들어 보려면 `blert voice test`, 종류를 바꾸려면 `blert voice kinds up,down,account,warn`. | Voice alerts are on. Kinds read aloud: {kinds}. Listen with `blert voice test`, or change the kinds with `blert voice kinds up,down,account,warn`. | ☐ |
+| 39 | `status.running` | blert 데몬 실행 중 — PID {pid} | blert background monitor running — PID {pid} | ☐ |
+| 40 | `status.crashed` | blert {mode}: 비정상 종료된 것으로 보입니다(마지막 생존 {alive}). 감시가 멈춰 있습니다. 다시 시작하려면 blert start | blert {mode}: it seems to have ended abnormally (last alive {alive}). Monitoring is stopped. To start again: blert start | ☐ |
+
+### 음성 문장 (소리 내어 읽는 문장)
+
+| # | 키 | 한국어 | English | 확인 |
+| --- | --- | --- | --- | --- |
+| 41 | `speech.liq.stage` | {coin} 선물 청산 {level} {stage}단계, 청산가까지 {distance} | {coin} futures liquidation {level}, stage {stage}, {distance} from liquidation | ☐ |
+| 42 | `speech.price.above` | {coin} {target} 돌파 | {coin} broke above {target} | ☐ |
+| 43 | `speech.batch` | 알림 {count}건 | {count} alerts | ☐ |
+
+## ✅ 확인함 (Claude)
+
+2026-10-13, Windows 11, 빌드한 `dist/index.js`, 임시 `APPDATA`. OS 언어를 따로 정하지 않은 상태의 `lang`은 이 PC의 언어(한국어)를 따르고, `LC_ALL=en_US.UTF-8`이면 영어, `BLERT_LANG=en`이면 도움말(`--help`)·`add`·`list`·`preset list`·`voice list`·`sound list`·오류 문구가 모두 영어로 나왔습니다. `lang en` → `lang` → `del all`(`Deleted 2 alerts.`) → `lang ko`로 설정 저장과 전환이 바로 반영됐습니다. 영어 음성은 소리가 나지 않게 하려고 재생하지 않았습니다(위 2번으로 넘깁니다).
