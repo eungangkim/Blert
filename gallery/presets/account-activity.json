@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "slug": "account-activity",
+  "version": 1,
+  "name": "체결·선물 알림 (Account activity)",
+  "description": "현물 체결 전체와 BTC·ETH 선물 체결을 알립니다. 읽기 전용 API 키가 필요합니다. / Alerts on all spot fills and on BTC and ETH futures fills. Needs a read-only API key.",
+  "license": "CC0-1.0",
+  "author": "blert",
+  "rules": [
+    {
+      "type": "fill",
+      "market": "spot",
+      "symbol": "*",
+      "condition": {
+        "type": "fill"
+      }
+    },
+    {
+      "type": "fill",
+      "market": "futures",
+      "symbol": "BTCUSDT",
+      "condition": {
+        "type": "fill"
+      }
+    },
+    {
+      "type": "fill",
+      "market": "futures",
+      "symbol": "ETHUSDT",
+      "condition": {
+        "type": "fill"
+      }
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "slug": "liq-guard",
+  "version": 1,
+  "name": "청산 단계 경고 (Liquidation guard)",
+  "description": "BTC·ETH 선물 포지션의 청산가까지 거리가 10%, 5%, 2%로 가까워질 때마다 알립니다. 읽기 전용 API 키가 필요합니다. / Alerts at 10%, 5% and 2% distance to the liquidation price of BTC and ETH futures positions. Needs a read-only API key.",
+  "license": "CC0-1.0",
+  "author": "blert",
+  "rules": [
+    {
+      "type": "liq",
+      "market": "futures",
+      "symbol": "BTCUSDT",
+      "condition": {
+        "type": "liq",
+        "pct": 10,
+        "stages": [
+          10,
+          5,
+          2
+        ]
+      },
+      "repeat": {
+        "kind": "cooldown",
+        "ms": 300000
+      }
+    },
+    {
+      "type": "liq",
+      "market": "futures",
+      "symbol": "ETHUSDT",
+      "condition": {
+        "type": "liq",
+        "pct": 10,
+        "stages": [
+          10,
+          5,
+          2
+        ]
+      },
+      "repeat": {
+        "kind": "cooldown",
+        "ms": 300000
+      }
+    }
+  ]
+}

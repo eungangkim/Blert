@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "slug": "funding-extremes",
+  "version": 1,
+  "name": "펀딩비 극단 (Funding extremes)",
+  "description": "BTC·ETH·SOL 선물 펀딩비가 0.1%를 넘거나 -0.1% 아래로 내려가면 알립니다. / Alerts when BTC, ETH or SOL futures funding goes above 0.1% or below -0.1%.",
+  "license": "CC0-1.0",
+  "author": "blert",
+  "rules": [
+    {
+      "type": "funding",
+      "market": "futures",
+      "symbol": "BTCUSDT",
+      "condition": {
+        "type": "funding",
+        "direction": "above",
+        "pct": 0.1
+      }
+    },
+    {
+      "type": "funding",
+      "market": "futures",
+      "symbol": "BTCUSDT",
+      "condition": {
+        "type": "funding",
+        "direction": "below",
+        "pct": -0.1
+      }
+    },
+    {
+      "type": "funding",
+      "market": "futures",
+      "symbol": "ETHUSDT",
+      "condition": {
+        "type": "funding",
+        "direction": "above",
+        "pct": 0.1
+      }
+    },
+    {
+      "type": "funding",
+      "market": "futures",
+      "symbol": "ETHUSDT",
+      "condition": {
+        "type": "funding",
+        "direction": "below",
+        "pct": -0.1
+      }
+    },
+    {
+      "type": "funding",
+      "market": "futures",
+      "symbol": "SOLUSDT",
+      "condition": {
+        "type": "funding",
+        "direction": "above",
+        "pct": 0.1
+      }
+    },
+    {
+      "type": "funding",
+      "market": "futures",
+      "symbol": "SOLUSDT",
+      "condition": {
+        "type": "funding",
+        "direction": "below",
+        "pct": -0.1
+      }
+    }
+  ]
+}

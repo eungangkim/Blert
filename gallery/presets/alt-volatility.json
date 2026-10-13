@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "slug": "alt-volatility",
+  "version": 1,
+  "name": "알트 변동성 (Altcoin volatility)",
+  "description": "XRP·DOGE·ADA·AVAX·LINK 현물이 1시간 안에 7% 이상 오르거나 내리면 알립니다. / Alerts when XRP, DOGE, ADA, AVAX or LINK spot moves 7% or more within one hour.",
+  "license": "CC0-1.0",
+  "author": "blert",
+  "rules": [
+    {
+      "type": "change",
+      "market": "spot",
+      "symbol": "XRPUSDT",
+      "condition": {
+        "type": "change",
+        "pct": 7,
+        "windowMs": 3600000,
+        "direction": "both"
+      }
+    },
+    {
+      "type": "change",
+      "market": "spot",
+      "symbol": "DOGEUSDT",
+      "condition": {
+        "type": "change",
+        "pct": 7,
+        "windowMs": 3600000,
+        "direction": "both"
+      }
+    },
+    {
+      "type": "change",
+      "market": "spot",
+      "symbol": "ADAUSDT",
+      "condition": {
+        "type": "change",
+        "pct": 7,
+        "windowMs": 3600000,
+        "direction": "both"
+      }
+    },
+    {
+      "type": "change",
+      "market": "spot",
+      "symbol": "AVAXUSDT",
+      "condition": {
+        "type": "change",
+        "pct": 7,
+        "windowMs": 3600000,
+        "direction": "both"
+      }
+    },
+    {
+      "type": "change",
+      "market": "spot",
+      "symbol": "LINKUSDT",
+      "condition": {
+        "type": "change",
+        "pct": 7,
+        "windowMs": 3600000,
+        "direction": "both"
+      }
+    }
+  ]
+}

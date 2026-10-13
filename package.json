@@ -17,6 +17,8 @@
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "dev": "tsx src/index.ts",
+    "gallery:build": "tsx gallery/scripts/build-index.ts",
+    "gallery:check": "tsx gallery/scripts/build-index.ts --check",
     "prepack": "npm run build"
   },
   "license": "MIT",

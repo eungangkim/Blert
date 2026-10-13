@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "presets": [
+    {
+      "slug": "account-activity",
+      "name": "체결·선물 알림 (Account activity)",
+      "description": "현물 체결 전체와 BTC·ETH 선물 체결을 알립니다. 읽기 전용 API 키가 필요합니다. / Alerts on all spot fills and on BTC and ETH futures fills. Needs a read-only API key.",
+      "license": "CC0-1.0",
+      "author": "blert",
+      "version": 1,
+      "file": "presets/account-activity.json",
+      "sha256": "5f2e5f7570922f24fc118d032ea50d739e2bca5d5aa653957af33e153a47e5bf",
+      "bytes": 815,
+      "ruleCount": 3,
+      "types": {
+        "fill": 3
+      },
+      "needsKey": true
+    },
+    {
+      "slug": "alt-volatility",
+      "name": "알트 변동성 (Altcoin volatility)",
+      "description": "XRP·DOGE·ADA·AVAX·LINK 현물이 1시간 안에 7% 이상 오르거나 내리면 알립니다. / Alerts when XRP, DOGE, ADA, AVAX or LINK spot moves 7% or more within one hour.",
+      "license": "CC0-1.0",
+      "author": "blert",
+      "version": 1,
+      "file": "presets/alt-volatility.json",
+      "sha256": "a38b8261ff413114fa163fa09e8cb081a275f87b9cb26707c96889180e4182d3",
+      "bytes": 1476,
+      "ruleCount": 5,
+      "types": {
+        "change": 5
+      },
+      "needsKey": false
+    },
+    {
+      "slug": "funding-extremes",
+      "name": "펀딩비 극단 (Funding extremes)",
+      "description": "BTC·ETH·SOL 선물 펀딩비가 0.1%를 넘거나 -0.1% 아래로 내려가면 알립니다. / Alerts when BTC, ETH or SOL futures funding goes above 0.1% or below -0.1%.",
+      "license": "CC0-1.0",
+      "author": "blert",
+      "version": 1,
+      "file": "presets/funding-extremes.json",
+      "sha256": "df4fd4c0d97f4a76f208b80f10f170a373fdbf5ed22735905f895b60a19c060e",
+      "bytes": 1560,
+      "ruleCount": 6,
+      "types": {
+        "funding": 6
+      },
+      "needsKey": false
+    },
+    {
+      "slug": "liq-guard",
+      "name": "청산 단계 경고 (Liquidation guard)",
+      "description": "BTC·ETH 선물 포지션의 청산가까지 거리가 10%, 5%, 2%로 가까워질 때마다 알립니다. 읽기 전용 API 키가 필요합니다. / Alerts at 10%, 5% and 2% distance to the liquidation price of BTC and ETH futures positions. Needs a read-only API key.",
+      "license": "CC0-1.0",
+      "author": "blert",
+      "version": 1,
+      "file": "presets/liq-guard.json",
+      "sha256": "2fcf4137d2f1a8dc2148456437ae7e3e6b970708e90a50454a8a393de835311b",
+      "bytes": 1079,
+      "ruleCount": 2,
+      "types": {
+        "liq": 2
+      },
+      "needsKey": true
+    }
+  ],
+  "themes": []
+}

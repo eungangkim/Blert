@@ -1,2 +1,4 @@
 * text=auto
 *.wav binary
+# 갤러리 파일은 해시를 안내하므로 줄바꿈을 바꾸지 않는다 (D-85)
+/gallery/** -text
