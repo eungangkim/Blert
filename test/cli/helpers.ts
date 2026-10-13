@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { DownloadResult } from '../../src/shared/download.js';
-import { runCli, type DownloaderPort, type DaemonPort, type Deps, type NotifierPort, type PresetService, type Runner, type ServicePort, type ChannelPort } from '../../src/cli/index.js';
+import { runCli, type VoicePort, type DownloaderPort, type DaemonPort, type Deps, type NotifierPort, type PresetService, type Runner, type ServicePort, type ChannelPort } from '../../src/cli/index.js';
 import { createPresetService } from '../../src/presets/index.js';
 import { createKeyService } from '../../src/security/index.js';
 import type { NetworkMode } from '../../src/shared/network.js';
@@ -63,7 +63,18 @@ export interface DownloadSim {
   calls: { url: string; maxBytes: number }[];
 }
 
+/** PC 내장 음성 대신 쓰는 가짜 (v1.3). 설치된 음성 목록과 읽은 문장을 기록한다 */
+export interface VoiceSim {
+  voices: { name: string; culture?: string }[];
+  /** 읽은 문장과 음성 이름 */
+  spoken: { text: string; voiceName?: string }[];
+  failList?: string;
+  failSpeak?: string;
+}
+
 export interface Harness {
+  /** 음성 시뮬레이션 (v1.3) */
+  vo: VoiceSim;
   /** 주소 내려받기 시뮬레이션 (v1.1) */
   dl: DownloadSim;
   /** 외부 채널 시뮬레이션 (v1.0) */
@@ -202,6 +213,17 @@ export async function makeHarness(
     },
     hasToken: async () => ch.token !== undefined,
   };
+  const vo: VoiceSim = { voices: [{ name: 'Voice Ko', culture: 'ko-KR' }, { name: 'Voice En', culture: 'en-US' }], spoken: [] };
+  const voice: VoicePort = {
+    list: async () => {
+      if (vo.failList) throw new Error(vo.failList);
+      return vo.voices;
+    },
+    speak: async (text, voiceName) => {
+      if (vo.failSpeak) throw new Error(vo.failSpeak);
+      vo.spoken.push({ text, ...(voiceName ? { voiceName } : {}) });
+    },
+  };
   const dl: DownloadSim = { responses: new Map(), calls: [] };
   const downloader: DownloaderPort = {
     download: async (url, o) => {
@@ -249,6 +271,7 @@ export async function makeHarness(
     service,
     channel,
     downloader,
+    voice,
     interrupt: () => sim.abort.signal,
     presets: presets === 'real' ? createPresetService(store) : presets,
     io: {
@@ -266,6 +289,7 @@ export async function makeHarness(
     svc,
     ch,
     dl,
+    vo,
     deps,
     dir,
     keychain,

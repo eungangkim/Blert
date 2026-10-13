@@ -34,6 +34,15 @@ export function durationText(ms: number): string {
  * params.market(spot/futures)은 여기서 번역한다 (engine은 i18n에 의존하지 않는다, B2).
  */
 export function render(alert: Alert): { title: string; body: string } {
+  const params = renderParams(alert);
+  const bodyKey = alert.titleKey.replace(/\.title$/, '.body');
+  const body = bodyKey === alert.titleKey ? '' : t(bodyKey, params);
+  // 견적 통화를 알 수 없는 쌍은 quote가 비어 공백이 겹친다
+  return { title: t(alert.titleKey, params).replace(/ {2,}/g, ' ').trim(), body: body === bodyKey ? '' : body.replace(/ {2,}/g, ' ').trim() };
+}
+
+/** 알림 파라미터를 문장에 넣을 글자로 바꾼다 (시장·방향·단계 수준 번역, 기간 변환). 화면 문구와 음성 문장이 함께 쓴다 */
+export function renderParams(alert: Alert): Record<string, string | number> {
   const params = { ...alert.params };
   // 이름이 Ms로 끝나는 숫자 파라미터(windowMs 등)는 기간(ms)이다. 한글 단위로 바꿔 같은 이름에서 Ms를 뺀 키로 쓴다.
   for (const [k, v] of Object.entries(alert.params)) {
@@ -42,10 +51,7 @@ export function render(alert: Alert): { title: string; body: string } {
   if (params.market === 'spot' || params.market === 'futures') params.market = t(`market.${params.market}`);
   if (params.level === 'caution' || params.level === 'danger' || params.level === 'urgent') params.level = t(`level.${params.level}`);
   if (params.side === 'BUY' || params.side === 'SELL' || params.side === 'LONG' || params.side === 'SHORT') params.side = t(`side.${params.side}`);
-  const bodyKey = alert.titleKey.replace(/\.title$/, '.body');
-  const body = bodyKey === alert.titleKey ? '' : t(bodyKey, params);
-  // 견적 통화를 알 수 없는 쌍은 quote가 비어 공백이 겹친다
-  return { title: t(alert.titleKey, params).replace(/ {2,}/g, ' ').trim(), body: body === bodyKey ? '' : body.replace(/ {2,}/g, ' ').trim() };
+  return params;
 }
 
 const SUMMARY_TOP = 3;

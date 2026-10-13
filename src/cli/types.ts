@@ -85,6 +85,16 @@ export interface ChannelPort {
 }
 
 /**
+ * PC 내장 음성(TTS)으로 말하고 설치된 음성을 조회하는 기능 (v1.3, D-111). cli는 notify를 직접 알 수 없어 cli가 정의하고
+ * 진입점에서 연결한다. 실패하면 Error.
+ */
+export interface VoicePort {
+  list(): Promise<{ name: string; culture?: string }[]>;
+  /** voiceName이 없으면 OS 기본 음성 */
+  speak(text: string, voiceName?: string): Promise<void>;
+}
+
+/**
  * 사용자가 명령에 직접 입력한 주소에서 파일을 내려받는 기능 (v1.1, D-78·D-93). 진입점에서 shared/download를 연결하고,
  * 테스트는 가짜를 넣는다. 자동 요청은 없다.
  */
@@ -109,6 +119,8 @@ export interface Deps {
   channel: ChannelPort;
   /** 주소 방식 소리·테마 내려받기 (v1.1) */
   downloader: DownloaderPort;
+  /** PC 내장 음성 (v1.3) */
+  voice: VoicePort;
   /** 호출하면 Ctrl+C에 중단되는 신호를 돌려준다 (blert logs -f). 호출한 때부터 Ctrl+C를 가로챈다 */
   interrupt: () => AbortSignal;
   io: Io;

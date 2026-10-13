@@ -4,12 +4,12 @@ import { closeSync, mkdirSync, openSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInterface, type Interface } from 'node:readline';
 import { runCli } from './cli/index.js';
-import type { ChannelPort, DaemonPort, Deps, DownloaderPort, Io } from './cli/index.js';
+import type { ChannelPort, DaemonPort, Deps, DownloaderPort, Io, VoicePort } from './cli/index.js';
 import { download } from './shared/download.js';
 import type { SoundKind } from './shared/types.js';
 import { createServicePort } from './service-win.js';
 import { createPresetService } from './presets/index.js';
-import { TelegramClient, createNotifier, type ChannelSource } from './notify/index.js';
+import { TelegramClient, VoiceEngine, createNotifier, type ChannelSource } from './notify/index.js';
 import { createRunner } from './runtime/index.js';
 import { Store } from './store/index.js';
 import { createKeyService, createNapiKeychain, createNapiSecretStore } from './security/index.js';
@@ -100,8 +100,12 @@ const channel: ChannelPort = {
 const userSound = (kind: SoundKind) => store.userSoundPath(kind);
 // 주소 방식 내려받기 (D-78·D-93): 사용자가 명령에 입력한 주소로만 접속한다
 const downloader: DownloaderPort = { download: (url, o) => download(url, { maxBytes: o.maxBytes }) };
+// 음성 알림 (v1.3, D-111·D-117): OS 내장 음성만 쓰고, 설정은 알림을 읽을 때마다 읽어 실행 중인 데몬도 바로 따른다.
+const voiceEngine = new VoiceEngine();
+const voice: VoicePort = { list: () => voiceEngine.list(), speak: (text, name) => voiceEngine.speak(text, name) };
+const voiceConfig = { engine: voiceEngine, config: async () => (await store.loadConfig()).voice };
 const soundEnabledForTest = async () => (await store.loadConfig()).soundEnabled;
-const notifier = createNotifier({ out: (line) => io.out(line), soundEnabled: soundEnabledForTest, userSound, channel: { source: channelSource } });
+const notifier = createNotifier({ out: (line) => io.out(line), soundEnabled: soundEnabledForTest, userSound, voice: voiceConfig, channel: { source: channelSource } });
 const soundEnabled = async () => (await store.loadConfig()).soundEnabled;
 const keys = createKeyService({ keychain: createNapiKeychain(), mode: network });
 const runner = createRunner({
@@ -110,7 +114,7 @@ const runner = createRunner({
   keys,
   network,
   // 데몬에는 터미널이 없어 console 어댑터를 쓰지 않는다. 알림 전체는 로그에 남는다 (D-55)
-  makeNotifier: (logger, mode) => createNotifier({ out: mode === 'daemon' ? () => {} : (line) => io.out(line), console: mode !== 'daemon', soundEnabled, userSound, logger, channel: { source: channelSource } }),
+  makeNotifier: (logger, mode) => createNotifier({ out: mode === 'daemon' ? () => {} : (line) => io.out(line), console: mode !== 'daemon', soundEnabled, userSound, voice: voiceConfig, logger, channel: { source: channelSource } }),
 });
 
 /** 같은 실행 파일을 숨김 명령(daemon-run)으로 분리 실행한다 (D-54). 표준 출력·오류는 로그 폴더의 daemon.err로 보낸다. */
@@ -148,7 +152,7 @@ const interrupt = (): AbortSignal => {
   return ac.signal;
 };
 const service = createServicePort();
-const deps: Deps = { store, presets: createPresetService(store), notifier, runner, keys, network, daemon, service, channel, downloader, interrupt, io };
+const deps: Deps = { store, presets: createPresetService(store), notifier, runner, keys, network, daemon, service, channel, downloader, voice, interrupt, io };
 const code = await runCli(process.argv.slice(2), deps);
 io.close();
 process.exitCode = code;

@@ -32,3 +32,33 @@ export const runProcess: RunFn = (cmd, args, env) =>
       else reject(new Error(`${cmd} exited with code ${code}`));
     });
   });
+
+/** 외부 명령을 실행하고 표준 출력을 돌려준다 (설치된 음성 목록 조회용). 실패·시간 초과는 Error */
+export type CaptureFn = (cmd: string, args: string[], env?: Record<string, string>) => Promise<string>;
+
+export const captureProcess: CaptureFn = (cmd, args, env) =>
+  new Promise<string>((resolve, reject) => {
+    let child;
+    try {
+      child = spawn(cmd, args, { env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
+    } catch (e) {
+      reject(e);
+      return;
+    }
+    let out = '';
+    child.stdout?.setEncoding('utf8');
+    child.stdout?.on('data', (d: string) => (out += d));
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error(`${cmd} timed out`));
+    }, TIMEOUT_MS);
+    child.on('error', (e) => {
+      clearTimeout(timer);
+      reject(e);
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (code === 0) resolve(out);
+      else reject(new Error(`${cmd} exited with code ${code}`));
+    });
+  });

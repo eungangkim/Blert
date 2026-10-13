@@ -18,6 +18,8 @@ export interface NotifyAdapter {
   name: string;
   /** true면 묶음 요약 대신 개별 알림 전체를 받는다 (요약 시에도 전체는 콘솔에 남긴다, D-28) */
   wantsAll?: boolean;
+  /** 지정한 이름의 어댑터가 끝난 뒤에 보낸다 (음성은 소리가 끝난 뒤, D-114) */
+  after?: string;
   send(alerts: Alert[], ctx?: SendContext): Promise<void>;
 }
 

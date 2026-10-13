@@ -8,9 +8,12 @@ import { t } from '../i18n/index.js';
 import { ConsoleAdapter, DesktopAdapter, SoundAdapter, type NotifyAdapter } from './adapters.js';
 import { TelegramAdapter, TelegramClient, type ChannelSource, type TelegramClientOptions } from './telegram.js';
 import type { RunFn } from './proc.js';
+import { VoiceAdapter, type VoiceAdapterOptions } from './voice.js';
 import { gapTimes, render, summarizeAlerts } from './render.js';
 
 export type { NotifyAdapter, SendContext } from './adapters.js';
+export { VoiceEngine, VoiceAdapter, DEFAULT_VOICE_KINDS, MAX_WAITING, type VoiceConfig, type VoiceInfo } from './voice.js';
+export { speechText, sanitizeSpeech, SPEECH_MAX_CHARS } from './speech.js';
 export { TelegramClient, TelegramAdapter, classifyAlert, formatMessage, TELEGRAM_HOSTS, type ChannelSource, type TgResult } from './telegram.js';
 
 const LOG = 'notify';
@@ -142,13 +145,21 @@ export class Notifier {
       const { title, body } = render(a);
       this.opts.logger?.info(LOG, `${a.kind} ${title}${body ? ` | ${body}` : ''}`);
     }
+    // 어댑터는 동시에 보내되, after를 지정한 어댑터(음성)는 그 어댑터(소리)가 끝난 뒤에 보낸다 (D-114)
+    const finished = new Map<string, Promise<void>>();
     await Promise.allSettled(
-      this.opts.adapters.map(async (adapter) => {
-        try {
-          await adapter.send(adapter.wantsAll ? full : display, { summarized: display.length === 1 && display[0]!.titleKey === 'alert.batch.title' });
-        } catch (e) {
-          this.reportFailure(adapter.name, e);
-        }
+      this.opts.adapters.map((adapter) => {
+        const wait = adapter.after ? finished.get(adapter.after) : undefined;
+        const p = (async () => {
+          await wait;
+          try {
+            await adapter.send(adapter.wantsAll ? full : display, { summarized: display.length === 1 && display[0]!.titleKey === 'alert.batch.title' });
+          } catch (e) {
+            this.reportFailure(adapter.name, e);
+          }
+        })();
+        finished.set(adapter.name, p);
+        return p;
       }),
     );
   }
@@ -157,7 +168,7 @@ export class Notifier {
   private reportFailure(name: string, e: unknown): void {
     const reason = e instanceof Error ? e.message : String(e);
     this.opts.logger?.warn(LOG, `${name} adapter failed: ${reason}`);
-    if (this.warned.has(name) || (name !== 'desktop' && name !== 'sound' && name !== 'telegram')) return;
+    if (this.warned.has(name) || (name !== 'desktop' && name !== 'sound' && name !== 'voice' && name !== 'telegram')) return;
     this.warned.add(name);
     if (name === 'telegram') return this.opts.warn(t('notify.telegramFailed', { reason })); // 토큰이 들어갈 수 있는 값은 reason에 넣지 않는다
     const guide = t(`notify.guide.${name}.${platformGroup(this.opts.platform)}`);
@@ -225,6 +236,8 @@ export interface CreateNotifierOptions {
   userSound?: (kind: SoundKind) => Promise<string | undefined>;
   /** 외부 알림 채널 (v1.0). 없으면 어댑터를 만들지 않는다. 등록 여부는 보내는 순간 확인한다 (D-69) */
   channel?: { source: ChannelSource; client?: TelegramClientOptions };
+  /** 음성 알림 (v1.3). 없으면 어댑터를 만들지 않는다. 설정은 보내는 순간 읽는다 (D-117) */
+  voice?: { engine: VoiceAdapterOptions['engine']; config: VoiceAdapterOptions['config'] };
 }
 
 /** 기본 어댑터(콘솔·데스크톱·소리)로 Notifier를 만든다 */
@@ -235,6 +248,7 @@ export function createNotifier(o: CreateNotifierOptions): Notifier {
     ...(o.console === false ? [] : [new ConsoleAdapter(o.out, () => clock.now())]),
     new DesktopAdapter(o.platform, o.run),
     sound,
+    ...(o.voice ? [new VoiceAdapter({ engine: o.voice.engine, config: o.voice.config, warn: o.out })] : []),
     ...(o.channel ? [new TelegramAdapter(o.channel.source, new TelegramClient({ logger: o.logger, ...o.channel.client }))] : []),
   ];
   return new Notifier({ adapters, sound, warn: o.out, clock, logger: o.logger, platform: o.platform });

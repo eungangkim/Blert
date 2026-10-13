@@ -52,6 +52,8 @@ export interface Config {
   channels?: { type: 'telegram'; chatId: string; includeAccount: boolean }[];
   /** 사용자가 등록한 소리 (v1.1, D-82·D-100). 선택 항목이라 schemaVersion은 올리지 않는다 */
   soundOverrides?: Partial<Record<SoundKind, SoundOverride>>;
+  /** 음성 알림 (v1.3, D-112·D-116·D-121). 선택 항목이라 schemaVersion은 올리지 않는다 */
+  voice?: { enabled: boolean; kinds: SoundKind[]; voiceName?: string };
 }
 export interface SoundOverride {
   /** sounds/ 안의 파일 이름 (blert가 정한 `<종류>-<해시 12자리>.wav`) */
