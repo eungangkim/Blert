@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { mkdirSync, promises as fs, statSync, watch as fsWatch } from 'node:fs';
-import type { Rule, RuleState } from '../shared/types.js';
+import type { Rule, RuleState, SoundKind } from '../shared/types.js';
 import { BlertError } from '../shared/errors.js';
 import { systemClock, iso, type Clock } from '../shared/clock.js';
 import { atomicWrite, readJson, writeJson, type FileSpec } from './jsonfile.js';
@@ -9,6 +9,8 @@ import { PID_SCHEMA_VERSION, holderIsRunning, readPidFile, writePidFile, type Ac
 import { withLock, type LockOptions } from './lock.js';
 
 export const SCHEMA_VERSION = 1;
+
+const exists = (p: string): Promise<boolean> => fs.access(p).then(() => true, () => false);
 
 export type { PidFile, AcquireResult } from './pid.js';
 export { pidAlive } from './pid.js';
@@ -47,6 +49,23 @@ export interface Config {
   keyRef?: string;
   /** 외부 알림 채널 (v1.0, D-69~D-72). 토큰은 키체인에만 두고 여기에는 대화 ID와 스위치만 둔다 */
   channels?: { type: 'telegram'; chatId: string; includeAccount: boolean }[];
+  /** 사용자가 등록한 소리 (v1.1, D-82·D-100). 선택 항목이라 schemaVersion은 올리지 않는다 */
+  soundOverrides?: Partial<Record<SoundKind, SoundOverride>>;
+}
+export interface SoundOverride {
+  /** sounds/ 안의 파일 이름 (blert가 정한 `<종류>-<해시 12자리>.wav`) */
+  file: string;
+  /** 출처: 주소는 호스트+경로(쿼리 제거), 로컬 파일은 'file' (D-97) */
+  source: string;
+  sha256: string;
+  durationMs: number;
+}
+export interface SoundInstall {
+  kind: SoundKind;
+  bytes: Uint8Array;
+  source: string;
+  sha256: string;
+  durationMs: number;
 }
 export interface RulesFile {
   schemaVersion: number;
@@ -113,6 +132,72 @@ export class Store {
       await writeJson(this.configSpec, c);
       return c;
     });
+  }
+
+  // --- 사용자 소리 (v1.1, D-96) ---
+  get soundsDir(): string {
+    return join(this.dir, 'sounds');
+  }
+
+  /**
+   * 소리를 설치한다. 파일은 blert가 정한 이름(`<종류>-<해시 12자리>.wav`)으로만 sounds/ 안에 쓰고, 설정 갱신이 실패하면
+   * 새로 쓴 파일을 지운다. 이전 소리 파일은 설정을 바꾼 뒤에 지운다. 여러 칸(테마)도 한 번의 설정 갱신으로 적용한다.
+   */
+  async installSounds(items: SoundInstall[]): Promise<void> {
+    const written: string[] = [];
+    try {
+      const entries = items.map((i) => ({ i, file: `${i.kind}-${i.sha256.slice(0, 12)}.wav` }));
+      for (const { i, file } of entries) {
+        const path = join(this.soundsDir, file);
+        if (!(await exists(path))) {
+          await atomicWrite(path, i.bytes);
+          written.push(path);
+        }
+      }
+      const old: string[] = [];
+      await this.updateConfig((c) => {
+        const o = (c.soundOverrides ??= {});
+        for (const { i, file } of entries) {
+          const prev = o[i.kind];
+          if (prev && prev.file !== file) old.push(prev.file);
+          o[i.kind] = { file, source: i.source, sha256: i.sha256, durationMs: i.durationMs };
+        }
+      });
+      await this.removeSoundFiles(old);
+    } catch (e) {
+      await Promise.all(written.map((p) => fs.rm(p, { force: true })));
+      throw e;
+    }
+  }
+
+  /** 사용자 소리를 되돌린다 (번들 소리로). 반환값은 되돌린 칸 */
+  async resetSounds(kinds: SoundKind[] | 'all'): Promise<SoundKind[]> {
+    const old: string[] = [];
+    const cleared: SoundKind[] = [];
+    await this.updateConfig((c) => {
+      const o = c.soundOverrides;
+      if (!o) return;
+      for (const k of Object.keys(o) as SoundKind[]) {
+        if (kinds !== 'all' && !kinds.includes(k)) continue;
+        old.push(o[k]!.file);
+        cleared.push(k);
+        delete o[k];
+      }
+      if (Object.keys(o).length === 0) delete c.soundOverrides;
+    });
+    await this.removeSoundFiles(old);
+    return cleared;
+  }
+
+  /** 등록된 사용자 소리 파일의 전체 경로. 등록이 없으면 undefined. 설정에 적힌 이름이 sounds/ 밖을 가리키면 무시한다 */
+  async userSoundPath(kind: SoundKind): Promise<string | undefined> {
+    const o = (await this.loadConfig()).soundOverrides?.[kind];
+    if (!o || basename(o.file) !== o.file) return undefined;
+    return join(this.soundsDir, o.file);
+  }
+
+  private async removeSoundFiles(files: string[]): Promise<void> {
+    await Promise.all(files.filter((f) => basename(f) === f).map((f) => fs.rm(join(this.soundsDir, f), { force: true }).catch(() => {})));
   }
 
   // --- rules ---

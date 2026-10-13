@@ -15,7 +15,7 @@ export interface FileSpec<T extends { schemaVersion: number }> {
 }
 
 /** 임시 파일에 쓴 뒤 교체하는 원자적 쓰기 (B8). */
-export async function atomicWrite(path: string, text: string): Promise<void> {
+export async function atomicWrite(path: string, text: string | Uint8Array): Promise<void> {
   await fs.mkdir(dirname(path), { recursive: true });
   const tmp = `${path}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
   try {
