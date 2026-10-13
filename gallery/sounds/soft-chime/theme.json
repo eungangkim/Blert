@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "name": "Soft chime",
+  "version": "1",
+  "license": "CC0-1.0",
+  "sounds": {
+    "up": {
+      "url": "up.wav",
+      "sha256": "f7b7dea17b9b895b1a01d2cdb9485b78475ccce0d8473f0ec9845dac99e10868"
+    },
+    "down": {
+      "url": "down.wav",
+      "sha256": "7456a9b83fbc950249626ebc4eff6f1fed927a65cb583c7a1d7c8e08336ce1e6"
+    },
+    "account": {
+      "url": "account.wav",
+      "sha256": "dd0bf8faf89f27e1b225cbc9c849861d64fe135d70c1777ca3970591bd787ac4"
+    },
+    "warn": {
+      "url": "warn.wav",
+      "sha256": "ad00a81e892713011e8fd4b1bbbe2a583b88d79d1072a4a9bf0bdb3fddddd260"
+    }
+  }
+}

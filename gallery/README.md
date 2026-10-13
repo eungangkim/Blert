@@ -14,6 +14,7 @@ gallery/
   presets/<slug>.json 프리셋 (blert preset install 이 받는 파일 형식 그대로)
   sounds/<slug>/      소리 테마: theme.json, up/down/account/warn.wav, LICENSE.md
   scripts/            목록 생성·검사
+  tools/make_sounds.py 직접 합성한 소리 테마를 만드는 스크립트 (같은 결과가 다시 나온다)
 ```
 
 ## 설치 / Install

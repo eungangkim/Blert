@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "name": "Retro beep",
+  "version": "1",
+  "license": "CC0-1.0",
+  "sounds": {
+    "up": {
+      "url": "up.wav",
+      "sha256": "5a68d3f405a6ce6dc88a4c9a3ec831a0a3381ab05e21f2325c9777801a2ccee6"
+    },
+    "down": {
+      "url": "down.wav",
+      "sha256": "85851b23b202bea23fb55d8fe7379aec7e7bb7d4f4febd2fad69004a9ed21101"
+    },
+    "account": {
+      "url": "account.wav",
+      "sha256": "ad8c056b468f1ff51acb6237584ff333250daa40a652f09fcd626d4f646dea0b"
+    },
+    "warn": {
+      "url": "warn.wav",
+      "sha256": "492c4c87188e29932ff442488eb71091ad360877869b2640219c7a9d9d7826dc"
+    }
+  }
+}

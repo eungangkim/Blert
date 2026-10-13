@@ -66,5 +66,76 @@
       "needsKey": true
     }
   ],
-  "themes": []
+  "themes": [
+    {
+      "slug": "retro-beep",
+      "name": "Retro beep",
+      "version": "1",
+      "license": "CC0-1.0",
+      "file": "sounds/retro-beep/theme.json",
+      "sha256": "f3b6aa3b282cb8b2b7a337422b812b93d9514c092488a8ac2f1dfd872dd39461",
+      "bytes": 627,
+      "sounds": {
+        "up": {
+          "file": "sounds/retro-beep/up.wav",
+          "sha256": "5a68d3f405a6ce6dc88a4c9a3ec831a0a3381ab05e21f2325c9777801a2ccee6",
+          "bytes": 10848,
+          "ms": 245
+        },
+        "down": {
+          "file": "sounds/retro-beep/down.wav",
+          "sha256": "85851b23b202bea23fb55d8fe7379aec7e7bb7d4f4febd2fad69004a9ed21101",
+          "bytes": 10848,
+          "ms": 245
+        },
+        "account": {
+          "file": "sounds/retro-beep/account.wav",
+          "sha256": "ad8c056b468f1ff51acb6237584ff333250daa40a652f09fcd626d4f646dea0b",
+          "bytes": 13274,
+          "ms": 300
+        },
+        "warn": {
+          "file": "sounds/retro-beep/warn.wav",
+          "sha256": "492c4c87188e29932ff442488eb71091ad360877869b2640219c7a9d9d7826dc",
+          "bytes": 26504,
+          "ms": 600
+        }
+      }
+    },
+    {
+      "slug": "soft-chime",
+      "name": "Soft chime",
+      "version": "1",
+      "license": "CC0-1.0",
+      "file": "sounds/soft-chime/theme.json",
+      "sha256": "e154f85afc06bcfec7814c6a817cb480035946b83dd3586d11efdceb6ac87106",
+      "bytes": 627,
+      "sounds": {
+        "up": {
+          "file": "sounds/soft-chime/up.wav",
+          "sha256": "f7b7dea17b9b895b1a01d2cdb9485b78475ccce0d8473f0ec9845dac99e10868",
+          "bytes": 28708,
+          "ms": 650
+        },
+        "down": {
+          "file": "sounds/soft-chime/down.wav",
+          "sha256": "7456a9b83fbc950249626ebc4eff6f1fed927a65cb583c7a1d7c8e08336ce1e6",
+          "bytes": 28708,
+          "ms": 650
+        },
+        "account": {
+          "file": "sounds/soft-chime/account.wav",
+          "sha256": "dd0bf8faf89f27e1b225cbc9c849861d64fe135d70c1777ca3970591bd787ac4",
+          "bytes": 30912,
+          "ms": 700
+        },
+        "warn": {
+          "file": "sounds/soft-chime/warn.wav",
+          "sha256": "ad00a81e892713011e8fd4b1bbbe2a583b88d79d1072a4a9bf0bdb3fddddd260",
+          "bytes": 44144,
+          "ms": 1000
+        }
+      }
+    }
+  ]
 }
