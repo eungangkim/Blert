@@ -44,7 +44,8 @@ export interface Config {
   language: 'ko';
   runMode: 'foreground';
   disclaimerAccepted: boolean;
-  presets: { slug: string; version: number }[];
+  /** 설치된 프리셋. 외부 프리셋(v1.2, D-107)은 이름·출처(쿼리 제거 또는 'file')·해시도 기록한다 */
+  presets: { slug: string; version: number; name?: string; source?: string; sha256?: string }[];
   /** 키체인에 저장한 키의 참조 이름. 키·시크릿은 파일에 저장하지 않는다 (B6) */
   keyRef?: string;
   /** 외부 알림 채널 (v1.0, D-69~D-72). 토큰은 키체인에만 두고 여기에는 대화 ID와 스위치만 둔다 */

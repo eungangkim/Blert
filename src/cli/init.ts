@@ -1,5 +1,6 @@
 import { BlertError } from '../shared/errors.js';
 import { t } from '../i18n/index.js';
+import { presetName } from './format.js';
 import type { Command, Ctx, Io } from './types.js';
 
 const MAX_TRIES = 3;
@@ -49,7 +50,7 @@ export const initCommand: Command = {
     if (list.length > 0) {
       io.out(t('init.askPreset'));
       list.forEach((p, i) =>
-        io.out(t('init.presetLine', { n: i + 1, slug: p.slug, name: t(p.nameKey) }) + (p.installed ? t('init.presetInstalledMark') : '')),
+        io.out(t('init.presetLine', { n: i + 1, slug: p.slug, name: presetName(p) }) + (p.installed ? t('init.presetInstalledMark') : '')),
       );
       io.out(t('init.presetNone'));
       const n = await askChoice(io, t('init.askPresetNumber'), list.length);

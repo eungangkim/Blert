@@ -103,6 +103,8 @@ export const fakePresets = (installed: string[] = []): PresetService => ({
     return 3;
   },
   remove: async () => 3,
+  slugConflict: async () => undefined,
+  installExternal: async () => 0,
 });
 
 /**

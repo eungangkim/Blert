@@ -44,6 +44,11 @@ export function symbolLabel(r: Pick<Rule, 'symbol' | 'condition'>): string {
   return r.symbol === '*' ? t('asset.all') : r.symbol;
 }
 
+/** 프리셋의 표시 이름: 내장은 i18n 키, 외부는 파일에 적힌 글자 (D-101) */
+export function presetName(p: { slug: string; nameKey?: string; name?: string }): string {
+  return p.nameKey ? t(p.nameKey) : (p.name ?? p.slug);
+}
+
 export function describeRule(r: Pick<Rule, 'market' | 'symbol' | 'condition' | 'repeat'>): string {
   return t('rule.summary', {
     market: t(`market.${r.market}`),

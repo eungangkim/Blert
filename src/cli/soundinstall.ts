@@ -1,17 +1,15 @@
-import { readFile, stat } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { BlertError, ExitCode } from '../shared/errors.js';
-import { safeOrigin, type DownloadFailure } from '../shared/download.js';
+import { BlertError } from '../shared/errors.js';
+import { safeOrigin } from '../shared/download.js';
 import { SOUND_KINDS, THEME_MAX_BYTES, localThemePath, parseTheme, type Theme } from '../shared/theme.js';
 import type { SoundKind } from '../shared/types.js';
 import { WAV_LIMITS, inspectWav, sha256Hex, type WavInfo } from '../shared/wav.js';
 import type { SoundInstall } from '../store/index.js';
 import { t } from '../i18n/index.js';
+import { SHA256, checkHash, fetchBytes, isUrl, readLocal } from './fetch.js';
 import { askYesNo } from './init.js';
 import type { Deps } from './types.js';
 
-const SHA256 = /^[0-9a-f]{64}$/i;
-const isUrl = (s: string): boolean => /^[a-z][a-z0-9+.-]*:\/\//i.test(s);
 const seconds = (ms: number): string => (ms / 1000).toFixed(2);
 
 interface Loaded {
@@ -20,30 +18,6 @@ interface Loaded {
   info: WavInfo;
   /** 설정에 기록할 출처: 주소는 호스트+경로(쿼리 제거), 로컬 파일은 'file' (D-97) */
   source: string;
-}
-
-const NETWORK_FAILURES: readonly DownloadFailure[] = ['timeout', 'network', 'http'];
-
-/** 주소에서 받는다. 실패 이유를 오류 문구로 바꾼다 (D-78) */
-async function fetchBytes(deps: Deps, url: string, maxBytes: number): Promise<{ bytes: Uint8Array; sha256: string }> {
-  const r = await deps.downloader.download(url, { maxBytes });
-  if (r.ok) return r;
-  throw new BlertError(`err.download.${r.reason}`, { url: safeOrigin(url) ?? '', status: r.status ?? 0, limit: Math.round(maxBytes / 1024) }, NETWORK_FAILURES.includes(r.reason) ? ExitCode.connection : ExitCode.input);
-}
-
-/** 로컬 파일을 읽는다. 크기 상한을 넘으면 읽기 전에 거부한다 */
-async function readLocal(path: string, maxBytes: number): Promise<Uint8Array> {
-  try {
-    if ((await stat(path)).size > maxBytes) throw new BlertError('err.download.too-large', { url: '', status: 0, limit: Math.round(maxBytes / 1024) });
-    return new Uint8Array(await readFile(path));
-  } catch (e) {
-    if (e instanceof BlertError) throw e;
-    throw new BlertError('err.soundFileRead', { path });
-  }
-}
-
-function checkHash(actual: string, expected: string | undefined): void {
-  if (expected !== undefined && expected.toLowerCase() !== actual) throw new BlertError('err.soundHash', { expected: expected.toLowerCase(), actual });
 }
 
 function inspect(bytes: Uint8Array): WavInfo {
