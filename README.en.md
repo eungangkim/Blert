@@ -78,6 +78,8 @@ For futures, put `f:` in front of the symbol (`f:BTC`). `BTC` is completed to `B
 | `blert sound set\|theme\|reset\|list` | Register your own sounds, themes, reset, check ([below](#your-own-alert-sounds)) |
 | `blert voice on\|off\|kinds\|list\|use\|test` | Read alerts aloud ([below](#voice-alerts-read-aloud-by-your-pc)) |
 | `blert lang [ko\|en]` | Show or change the message language |
+| `blert snooze <duration>\|off` `blert quiet <HH:MM>-<HH:MM>\|off` | Go quiet for a while or every day ([below](#quiet-hours-snooze-and-daily)) |
+| `blert history [--since] [--kind] [-n]` | Show the alerts that fired ([below](#alert-history)) |
 
 Every command has `--help`, and advanced options are shown by `blert --help --advanced`.
 
@@ -181,6 +183,42 @@ blert voice off                   # turn off
 - A running monitor (`blert start`) follows changed settings **without a restart**.
 - If you have not chosen a voice, an installed voice matching the current language is used (an English voice for English). If the voice you chose disappears, the OS default voice reads instead and you are told once. On a PC without voices, alerts and sounds still work normally.
 - **Windows is verified** (Korean Heami, English Zira). macOS (`say`) and Linux (`spd-say`, `espeak-ng`) have not been checked on a real machine yet and will be judged from user reports.
+
+## Quiet hours (snooze and daily)
+
+Keep alert sounds from going off at night or in meetings.
+
+```bash
+blert snooze 1h                    # quiet for 1 hour (up to 7 days; turn off: blert snooze off)
+blert quiet 23:00-07:00            # quiet every day 11 pm to 7 am (turn off: blert quiet off)
+blert quiet 22:00-08:00 --all      # also silence desktop notifications and Telegram
+blert snooze 30m --include-warn    # silence warnings too
+blert snooze                       # show the current state (also shown by blert status)
+```
+
+- **By default only sound and voice are turned off.** Desktop notifications still appear. With `--all`, desktop notifications and external channels (Telegram) are turned off too. Terminal output of `blert run` is unchanged.
+- **Warnings such as liquidation proximity, extreme funding rates, lost connections and monitoring gaps still sound during quiet time by default**, because missing them can be costly. Use `--include-warn` to silence them too.
+- Times are this PC's local time. Ranges that cross midnight (`23:00-07:00`) work. You can set one range per day; the start time is included and the end time is not.
+- Snooze and the daily range are turned on and off separately. If both are active, the one that silences more applies.
+- A running monitor (`blert start`) follows the change from the next alert, **without a restart**. Alerts handled quietly stay in the [history](#alert-history) with a mark, and blert does not announce that quiet time has ended.
+- `blert test` and `blert sound test` still sound during quiet time.
+
+## Alert history
+
+blert keeps the alerts that fired on this PC so you can look back, for example to see what happened while you were away.
+
+```bash
+blert history                      # the latest 20 (newest first)
+blert history --since 6h           # the last 6 hours
+blert history --kind warn -n 5     # 5 warnings
+blert history off                  # stop recording (turn on again: blert history on)
+blert history clear                # delete all records (asks first)
+```
+
+- **What is kept:** alerts fired by rules, key problem alerts and monitoring gaps. Start and recovery notices and `blert test` are not kept. Even when several alerts are shown as one summary, each is recorded separately. Alerts handled quietly carry a `(silenced)` mark.
+- **How long:** the last 30 days, up to 2,000 entries; the oldest go first. This is separate from the logs (7 days, 10 MB).
+- **Where:** `history.json` in the settings folder. It never leaves this PC, holds no API keys or secrets, and is not part of preset or settings sharing. It does contain the quantities and prices of fill and balance alerts, so use `blert history off` and `blert history clear` if you do not want that.
+- If you change the language, past records are shown in the new language. A damaged file is kept as `history.json.bak` and a new one is started.
 
 ## Sharing presets (install from a file or URL)
 
