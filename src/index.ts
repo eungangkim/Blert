@@ -7,11 +7,12 @@ import { runCli } from './cli/index.js';
 import type { ChannelPort, DaemonPort, Deps, DownloaderPort, Io, VoicePort } from './cli/index.js';
 import { download } from './shared/download.js';
 import type { SoundKind } from './shared/types.js';
+import { activeQuiet } from './shared/quiet.js';
 import { createServicePort } from './service-win.js';
 import { createPresetService } from './presets/index.js';
-import { TelegramClient, VoiceEngine, createNotifier, type ChannelSource } from './notify/index.js';
+import { TelegramClient, VoiceEngine, createNotifier, renderAlert, type ChannelSource } from './notify/index.js';
 import { createRunner } from './runtime/index.js';
-import { Store } from './store/index.js';
+import { HistoryRecorder, Store } from './store/index.js';
 import { createKeyService, createNapiKeychain, createNapiSecretStore } from './security/index.js';
 import { networkMode, type NetworkMode } from './shared/network.js';
 import { BlertError } from './shared/errors.js';
@@ -113,8 +114,22 @@ const downloader: DownloaderPort = { download: (url, o) => download(url, { maxBy
 const voiceEngine = new VoiceEngine();
 const voice: VoicePort = { list: () => voiceEngine.list(), speak: (text, name) => voiceEngine.speak(text, name) };
 const voiceConfig = { engine: voiceEngine, config: async () => (await store.loadConfig()).voice };
+// 조용한 시간 (v1.5, D-135~D-141): 알림을 보낼 때마다 설정을 읽어, 실행 중인 데몬도 snooze·quiet를 바로 따른다.
+const quiet = async () => activeQuiet((await store.loadConfig()).quiet, Date.now());
+// 알림 기록 (v1.5, D-142~D-145): 1초 단위로 모아 쓰고, `history off`는 쓰기 직전에 반영한다. 저장 실패는 한 번만 알린다.
+let historyWarned = false;
+const recorder = new HistoryRecorder({
+  append: (entries) => store.appendHistory(entries),
+  enabled: () => store.historyEnabled().catch(() => true),
+  onError: (e) => {
+    if (historyWarned) return;
+    historyWarned = true;
+    io.err(t('history.writeFailed', { reason: e instanceof Error ? e.message : String(e) }));
+  },
+});
+const record = (entries: Parameters<HistoryRecorder['add']>[0]) => recorder.add(entries);
 const soundEnabledForTest = async () => (await store.loadConfig()).soundEnabled;
-const notifier = createNotifier({ out: (line) => io.out(line), soundEnabled: soundEnabledForTest, userSound, voice: voiceConfig, channel: { source: channelSource } });
+const notifier = createNotifier({ out: (line) => io.out(line), soundEnabled: soundEnabledForTest, userSound, voice: voiceConfig, channel: { source: channelSource }, quiet });
 const soundEnabled = async () => (await store.loadConfig()).soundEnabled;
 const keys = createKeyService({ keychain: createNapiKeychain(), mode: network });
 const runner = createRunner({
@@ -123,7 +138,7 @@ const runner = createRunner({
   keys,
   network,
   // 데몬에는 터미널이 없어 console 어댑터를 쓰지 않는다. 알림 전체는 로그에 남는다 (D-55)
-  makeNotifier: (logger, mode) => createNotifier({ out: mode === 'daemon' ? () => {} : (line) => io.out(line), console: mode !== 'daemon', soundEnabled, userSound, voice: voiceConfig, logger, channel: { source: channelSource } }),
+  makeNotifier: (logger, mode) => createNotifier({ out: mode === 'daemon' ? () => {} : (line) => io.out(line), console: mode !== 'daemon', soundEnabled, userSound, voice: voiceConfig, logger, channel: { source: channelSource }, quiet, record }),
 });
 
 /** 같은 실행 파일을 숨김 명령(daemon-run)으로 분리 실행한다 (D-54). 표준 출력·오류는 로그 폴더의 daemon.err로 보낸다. */
@@ -161,7 +176,8 @@ const interrupt = (): AbortSignal => {
   return ac.signal;
 };
 const service = createServicePort();
-const deps: Deps = { store, presets: createPresetService(store), notifier, runner, keys, network, daemon, service, channel, downloader, voice, interrupt, io };
+const deps: Deps = { store, presets: createPresetService(store), notifier, runner, keys, network, daemon, service, channel, downloader, voice, renderAlert, interrupt, io };
 const code = await runCli(process.argv.slice(2), deps);
+await recorder.flush(); // 종료할 때 모아 둔 기록을 마저 쓴다
 io.close();
 process.exitCode = code;

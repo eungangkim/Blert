@@ -16,6 +16,7 @@ import { gapTimes, render, summarizeAlerts } from './render.js';
 export type { NotifyAdapter, SendContext } from './adapters.js';
 export { VoiceEngine, VoiceAdapter, DEFAULT_VOICE_KINDS, MAX_WAITING, type VoiceConfig, type VoiceInfo } from './voice.js';
 export { speechText, sanitizeSpeech, SPEECH_MAX_CHARS } from './speech.js';
+export { render as renderAlert } from './render.js';
 export { TelegramClient, TelegramAdapter, classifyAlert, formatMessage, TELEGRAM_HOSTS, type ChannelSource, type TgResult } from './telegram.js';
 
 const LOG = 'notify';

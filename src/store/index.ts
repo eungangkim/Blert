@@ -3,17 +3,20 @@ import { basename, join } from 'node:path';
 import { mkdirSync, promises as fs, statSync, watch as fsWatch } from 'node:fs';
 import type { Rule, RuleState, SoundKind } from '../shared/types.js';
 import type { QuietConfig } from '../shared/quiet.js';
+import { pruneHistory, sortHistory, type HistoryEntry } from '../shared/history.js';
 import { BlertError } from '../shared/errors.js';
 import { systemClock, iso, type Clock } from '../shared/clock.js';
 import { atomicWrite, readJson, writeJson, type FileSpec } from './jsonfile.js';
 import { PID_SCHEMA_VERSION, holderIsRunning, readPidFile, writePidFile, type AcquireResult, type PidFile } from './pid.js';
 import { withLock, type LockOptions } from './lock.js';
+import { backupCorrupt, readHistory, writeHistory, type HistoryRead } from './history.js';
 
 export const SCHEMA_VERSION = 1;
 
 const exists = (p: string): Promise<boolean> => fs.access(p).then(() => true, () => false);
 
 export type { PidFile, AcquireResult } from './pid.js';
+export { HistoryRecorder, type HistoryRead } from './history.js';
 export { pidAlive } from './pid.js';
 
 export const STATUS_SCHEMA_VERSION = 1;
@@ -140,6 +143,42 @@ export class Store {
       mutate(c);
       await writeJson(this.configSpec, c);
       return c;
+    });
+  }
+
+  // --- 알림 기록 (v1.5, D-142~D-145) ---
+  get historyPath(): string {
+    return join(this.dir, 'history.json');
+  }
+
+  /** 기록을 읽는다 (읽기만 한다. 감시가 실행 중이어도 쓸 수 있다). 오래된 순 */
+  loadHistory(): Promise<HistoryRead> {
+    return readHistory(this.historyPath);
+  }
+
+  /** 기록이 켜져 있는가. 설정에 없으면 켜짐이다 (D-145) */
+  async historyEnabled(): Promise<boolean> {
+    return (await this.loadConfig()).history?.enabled !== false;
+  }
+
+  /**
+   * 기록을 이어 붙이고 30일·2,000건 보관 정책으로 오래된 것을 지운다 (D-143, D-144). 전체를 임시 파일에 쓴 뒤 교체한다.
+   * 읽을 수 없는 파일은 `.bak`으로 옮겨 두고 새로 시작한다.
+   */
+  appendHistory(entries: HistoryEntry[]): Promise<void> {
+    return this.locked(async () => {
+      const cur = await readHistory(this.historyPath);
+      if (cur.corrupt) await backupCorrupt(this.historyPath);
+      await writeHistory(this.historyPath, pruneHistory(sortHistory([...cur.entries, ...entries]), this.clock.now()));
+    });
+  }
+
+  /** 기록을 모두 지운다. 지운 개수를 돌려준다 (D-145) */
+  clearHistory(): Promise<number> {
+    return this.locked(async () => {
+      const cur = await readHistory(this.historyPath);
+      await fs.rm(this.historyPath, { force: true });
+      return cur.entries.length;
     });
   }
 

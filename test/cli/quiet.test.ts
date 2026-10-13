@@ -176,6 +176,18 @@ describe('조용한 시간 설정의 호환 (AC-130)', () => {
     expect(c.schemaVersion).toBe(1);
   });
 
+  it('AC-130 v1.4까지의 명령이 설정을 다시 저장해도 quiet와 history 설정이 보존된다', async () => {
+    h = await makeHarness();
+    await h.run('snooze 1h');
+    await h.run('quiet 23:00-07:00 --all');
+    await h.run('history off');
+    for (const c of ['sound off', 'sound on', 'voice on', 'lang ko']) await h.run(c); // 설정을 다시 쓰는 기존 명령
+    const q = (await h.deps.store.loadConfig());
+    expect(q.quiet?.snooze).toBeDefined();
+    expect(q.quiet?.schedule).toMatchObject({ from: '23:00', to: '07:00', all: true });
+    expect(q.history).toEqual({ enabled: false });
+  });
+
   it('AC-130 손상된 quiet 값이 있어도 명령이 죽지 않고 꺼짐으로 보여 준다', async () => {
     h = await makeHarness();
     await h.deps.store.updateConfig((c) => {

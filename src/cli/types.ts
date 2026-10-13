@@ -1,6 +1,6 @@
 import type { Store } from '../store/index.js';
 import type { PresetService } from '../presets/index.js';
-import type { SoundKind } from '../shared/types.js';
+import type { Alert, SoundKind } from '../shared/types.js';
 import type { KeyService } from '../security/index.js';
 import type { NetworkMode } from '../shared/network.js';
 import type { DownloadResult } from '../shared/download.js';
@@ -121,6 +121,8 @@ export interface Deps {
   downloader: DownloaderPort;
   /** PC 내장 음성 (v1.3) */
   voice: VoicePort;
+  /** 알림을 제목·본문 문장으로 바꾼다 (notify의 render, v1.5). 기록 조회가 현재 언어로 보여 줄 때 쓴다 (D-146) */
+  renderAlert: (alert: Alert) => { title: string; body: string };
   /** 호출하면 Ctrl+C에 중단되는 신호를 돌려준다 (blert logs -f). 호출한 때부터 Ctrl+C를 가로챈다 */
   interrupt: () => AbortSignal;
   io: Io;

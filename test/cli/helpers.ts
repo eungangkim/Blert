@@ -8,6 +8,7 @@ import { createKeyService } from '../../src/security/index.js';
 import type { NetworkMode } from '../../src/shared/network.js';
 import { FakeKeychain, jsonResponse, restrictions } from '../security/helpers.js';
 import { Store } from '../../src/store/index.js';
+import { render } from '../../src/notify/render.js';
 
 /** 데몬 프로세스 대신 쓰는 가짜. 시계는 sleep할 때만 흐른다 (실제로 기다리지 않는다) */
 export interface DaemonSim {
@@ -272,6 +273,7 @@ export async function makeHarness(
     channel,
     downloader,
     voice,
+    renderAlert: render,
     interrupt: () => sim.abort.signal,
     presets: presets === 'real' ? createPresetService(store) : presets,
     io: {

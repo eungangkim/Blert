@@ -58,6 +58,9 @@ export function parseHistoryEntry(v: unknown): HistoryEntry | undefined {
   return { ts: v.ts, ruleId: v.ruleId, kind: v.kind as SoundKind, titleKey: v.titleKey, params, ...(quiet ? { quiet } : {}) };
 }
 
+/** 시각 순(오래된 것 먼저)으로 정렬한다. 같은 시각이면 들어온 순서를 유지한다. 여러 경로(묶음 지연, warn 즉시 전송)로 들어와 순서가 어긋날 수 있다 */
+export const sortHistory = (entries: HistoryEntry[]): HistoryEntry[] => entries.map((e, i) => ({ e, i, t: Date.parse(e.ts) })).sort((a, b) => a.t - b.t || a.i - b.i).map((x) => x.e);
+
 /** 오래된 것부터 지운다: 30일이 지난 것과, 최신 2,000건을 넘는 것 (D-144). 입력은 오래된 순이어야 한다 */
 export function pruneHistory(entries: HistoryEntry[], nowMs: number, o: { maxEntries?: number; maxAgeMs?: number } = {}): HistoryEntry[] {
   const maxAge = o.maxAgeMs ?? HISTORY_MAX_AGE_MS;

@@ -12,6 +12,7 @@ import { soundCommand, testCommand } from './sound.js';
 import { voiceCommand } from './voice.js';
 import { langCommand } from './lang.js';
 import { quietCommand, snoozeCommand } from './quiet.js';
+import { historyCommand } from './history.js';
 import { runCommand } from './run.js';
 import { keyCommand } from './key.js';
 import { daemonRunCommand, startCommand, statusCommand, stopCommand } from './daemon.js';
@@ -25,7 +26,7 @@ import type { Command, Deps } from './types.js';
 export type { Deps, Io, PresetService, NotifierPort, Runner, DaemonPort, ServicePort, ChannelPort, DownloaderPort, VoicePort, Command } from './types.js';
 
 /** 명령 레지스트리. 도움말과 오타 제안이 이 목록을 쓴다. */
-export const defaultCommands: Command[] = [initCommand, addCommand, listCommand, delCommand, pauseCommand, resumeCommand, presetCommand, soundCommand, voiceCommand, snoozeCommand, quietCommand, langCommand, testCommand, runCommand, startCommand, stopCommand, statusCommand, logsCommand, serviceCommand, channelCommand, keyCommand, daemonRunCommand];
+export const defaultCommands: Command[] = [initCommand, addCommand, listCommand, delCommand, pauseCommand, resumeCommand, presetCommand, soundCommand, voiceCommand, snoozeCommand, quietCommand, historyCommand, langCommand, testCommand, runCommand, startCommand, stopCommand, statusCommand, logsCommand, serviceCommand, channelCommand, keyCommand, daemonRunCommand];
 
 /** 이 명령들은 직접 실행 상태를 다루므로 죽은 데몬 경고를 따로 하지 않는다 */
 const NO_DAEMON_WARNING = ['start', 'stop', 'status', 'run', 'daemon-run'];

@@ -3,7 +3,7 @@ import { t } from '../i18n/index.js';
 import { suggest } from './suggest.js';
 import type { ParsedArgs } from './types.js';
 
-export const VALUE_OPTIONS = ['mode', 'sound', 'name', 'lines', 'sha256'];
+export const VALUE_OPTIONS = ['mode', 'sound', 'name', 'lines', 'sha256', 'since', 'kind'];
 export const FLAG_OPTIONS = ['help', 'advanced', 'all', 'verbose', 'follow', 'service', 'include-warn'];
 /** 모든 명령에서 허용되는 옵션 */
 export const GLOBAL_OPTIONS = ['help', 'advanced', 'verbose'];
