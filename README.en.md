@@ -6,6 +6,8 @@ A local CLI that lets you set up Binance spot and futures alerts with commands a
 There is no server, and your API keys and settings never leave this PC. Network requests go only to Binance servers, and alert text is passed to an outside service **only if you turn on an external alert channel (Telegram) yourself** (off by default).
 
 > This is not investment advice, and blert is not responsible for losses caused by missed or delayed alerts.
+>
+> blert is not affiliated with or endorsed by Binance. It is an independent open-source project.
 
 ## Install
 
