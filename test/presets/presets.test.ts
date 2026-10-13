@@ -143,7 +143,7 @@ describe('presets 표시 (FR-PRE-02)', () => {
 
 describe('init과 프리셋 연결', () => {
   it('AC-01 init에서 프리셋을 고르면 해당 규칙이 등록되고 config에 기록된다', async () => {
-    const hh = await makeHarness(['y', 'y', '1'], 'real');
+    const hh = await makeHarness(['', 'y', 'y', '1'], 'real');
     expect(await hh.run('init')).toBe(0);
     const rules = await hh.deps.store.loadRules();
     expect(rules).toHaveLength(3);
@@ -153,7 +153,7 @@ describe('init과 프리셋 연결', () => {
   });
 
   it('init을 다시 실행해 이미 설치된 프리셋을 고르면 중복 등록 없이 끝난다', async () => {
-    const hh = await makeHarness(['y', 'y', '1'], 'real');
+    const hh = await makeHarness(['', 'y', 'y', '1'], 'real');
     await hh.deps.presets.install('major-swing');
     expect(await hh.run('init')).toBe(0);
     expect(await hh.deps.store.loadRules()).toHaveLength(3);

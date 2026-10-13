@@ -1,5 +1,5 @@
 import { BlertError } from '../shared/errors.js';
-import { t } from '../i18n/index.js';
+import { LANGUAGES, osLocale, parseLanguage, resolveLanguage, setLanguage, t, type Language } from '../i18n/index.js';
 import { presetName } from './format.js';
 import type { Command, Ctx, Io } from './types.js';
 
@@ -34,12 +34,38 @@ async function askChoice(io: Io, question: string, max: number): Promise<number>
   throw new BlertError('err.invalidAnswer');
 }
 
+/**
+ * 첫 질문: 메시지 언어 (D-124). 기본은 설정·OS 로캘로 정한 언어이고, 빈 입력·입력 종료·잘못된 입력 3번은 기본을 따른다.
+ * BLERT_LANG로 언어를 정해 둔 경우에는 묻지 않는다. 고른 언어는 설정에 저장하고 이후 안내부터 그 언어로 보여 준다.
+ */
+async function askLanguage(deps: Ctx['deps']): Promise<void> {
+  if (parseLanguage(process.env.BLERT_LANG)) return;
+  const { io, store } = deps;
+  const fallback = resolveLanguage({ config: (await store.loadConfig()).language, locale: osLocale() }).language;
+  let chosen: Language = fallback;
+  for (let i = 0; i < MAX_TRIES; i++) {
+    const a = await io.ask(t('init.askLanguage', { default: LANGUAGES.indexOf(fallback) + 1 }));
+    if (a === null || a.trim() === '') break;
+    const answer = a.trim();
+    const picked = /^[12]$/.test(answer) ? LANGUAGES[Number(answer) - 1] : parseLanguage(answer);
+    if (picked) {
+      chosen = picked;
+      break;
+    }
+  }
+  setLanguage(chosen);
+  await store.updateConfig((c) => {
+    c.language = chosen;
+  });
+}
+
 export const initCommand: Command = {
   name: 'init',
   usageKeys: ['usage.init'],
   allowedOptions: [],
   async run({ deps }: Ctx) {
     const { io, store, presets } = deps;
+    await askLanguage(deps);
     io.out(t('init.disclaimer'));
     if (!(await askYesNo(io, t('init.askAgree'), false))) throw new BlertError('err.initDeclined');
     const sound = await askYesNo(io, t('init.askSound'), true);

@@ -185,7 +185,7 @@ describe('cli 오타 제안·도움말', () => {
 describe('cli init', () => {
   it('AC-01 고지 동의·소리 설정이 저장되고 선택한 프리셋 규칙이 등록된다', async () => {
     const installed: string[] = [];
-    const hh = await makeHarness(['y', 'n', '1'], fakePresets(installed));
+    const hh = await makeHarness(['', 'y', 'n', '1'], fakePresets(installed)) // 첫 질문은 언어(빈 입력 = 기본);
     expect(await hh.run('init')).toBe(0);
     expect(await hh.deps.store.loadConfig()).toMatchObject({ disclaimerAccepted: true, soundEnabled: false });
     expect(installed).toEqual(['major-swing']);
@@ -194,7 +194,7 @@ describe('cli init', () => {
   });
 
   it('NFR-LEGAL-01 고지를 먼저 보여주고, 동의하지 않으면 저장하지 않고 종료 코드 1', async () => {
-    const hh = await makeHarness(['n']);
+    const hh = await makeHarness(['', 'n']);
     expect(await hh.run('init')).toBe(1);
     expect(hh.out[0]).toContain('투자 조언이 아니며');
     expect((await hh.deps.store.loadConfig()).disclaimerAccepted).toBe(false);
@@ -202,19 +202,19 @@ describe('cli init', () => {
   });
 
   it('빈 입력은 기본값(소리 켬, 프리셋 안 함)이고, 입력이 끝나면 종료 코드 1', async () => {
-    const hh = await makeHarness(['y', '', '']);
+    const hh = await makeHarness(['', 'y', '', '']);
     expect(await hh.run('init')).toBe(0);
     expect(await hh.deps.store.loadConfig()).toMatchObject({ soundEnabled: true });
-    const eof = await makeHarness(['y']);
+    const eof = await makeHarness(['', 'y']);
     expect(await eof.run('init')).toBe(1);
     await hh.cleanup();
     await eof.cleanup();
   });
 
   it('알 수 없는 답변은 다시 묻고 3번 틀리면 중단한다', async () => {
-    const hh = await makeHarness(['??', '??', '??']);
+    const hh = await makeHarness(['', '??', '??', '??']);
     expect(await hh.run('init')).toBe(1);
-    expect(hh.asked).toHaveLength(3);
+    expect(hh.asked).toHaveLength(4);
     await hh.cleanup();
   });
 });

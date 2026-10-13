@@ -15,7 +15,7 @@ import { Store } from './store/index.js';
 import { createKeyService, createNapiKeychain, createNapiSecretStore } from './security/index.js';
 import { networkMode, type NetworkMode } from './shared/network.js';
 import { BlertError } from './shared/errors.js';
-import { t } from './i18n/index.js';
+import { osLocale, resolveLanguage, setLanguage, t } from './i18n/index.js';
 
 /** 질문할 때만 stdin을 연다. 입력이 끝나면 ask는 null을 돌려준다. */
 function createIo(): Io & { close(): void } {
@@ -68,6 +68,15 @@ try {
 }
 
 const store = new Store();
+
+// 메시지 언어 (v1.4, D-123·D-125): 프로세스가 시작할 때 한 번 정한다. BLERT_LANG > 설정 > OS 로캘 > ko
+setLanguage(
+  resolveLanguage({
+    env: process.env.BLERT_LANG,
+    config: await store.loadConfig().then((c) => c.language, () => undefined), // 설정을 읽지 못해도 명령은 계속된다
+    locale: osLocale(),
+  }).language,
+);
 
 // 외부 알림 채널 (v1.0, D-69~D-73). 등록 정보와 토큰은 보내는 순간에 읽어, 실행 중인 데몬도 channel add/remove를 바로 따른다.
 const secrets = createNapiSecretStore();

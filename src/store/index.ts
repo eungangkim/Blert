@@ -41,7 +41,8 @@ export type RunLockState = { state: 'none' } | { state: 'running'; file: PidFile
 export interface Config {
   schemaVersion: number;
   soundEnabled: boolean;
-  language: 'ko';
+  /** 메시지 언어 (v1.4, D-123·D-131). 없으면 OS 로캘을 따른다. 옛 버전은 'ko'만 알고 'en'은 한국어로 동작한다 */
+  language?: 'ko' | 'en';
   runMode: 'foreground';
   disclaimerAccepted: boolean;
   /** 설치된 프리셋. 외부 프리셋(v1.2, D-107)은 이름·출처(쿼리 제거 또는 'file')·해시도 기록한다 */
@@ -103,7 +104,7 @@ export class Store {
     this.clock = opts.clock ?? systemClock;
     this.configSpec = {
       path: join(dir, 'config.json'), name: 'config.json', current: SCHEMA_VERSION, steps: [],
-      defaults: () => ({ schemaVersion: SCHEMA_VERSION, soundEnabled: true, language: 'ko', runMode: 'foreground', disclaimerAccepted: false, presets: [] }),
+      defaults: () => ({ schemaVersion: SCHEMA_VERSION, soundEnabled: true, runMode: 'foreground', disclaimerAccepted: false, presets: [] }),
     };
     this.rulesSpec = {
       path: join(dir, 'rules.json'), name: 'rules.json', current: SCHEMA_VERSION, steps: [],
