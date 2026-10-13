@@ -612,3 +612,39 @@ blert는 이를 피하는 방식(`-EncodedCommand`·WinRT 미사용)으로 알�
 ## ✅ 확인함 (Claude)
 
 2026-10-13, Windows 11, 빌드한 `dist/index.js`, 임시 `APPDATA`. 파일 설치(요약·규칙 줄·계정 규칙 키 안내) → `preset list`(출처 열과 해시 앞 8자리) → `list`(출처 `preset:btc-breakout`) → 같은 파일 재설치 거절(제거 후 재설치 안내) → 값이 틀린 파일(`price: -1`) 거부와 위치 안내 → `http://` 주소 거부 → `preset remove`(그 규칙만 삭제)가 모두 기대대로 동작했습니다.
+
+---
+
+# v1.3 — 음성 알림과 단계별 청산 경고 (FR-NOTI-05, FR-ALERT-06, AC-95 ~ AC-106)
+
+## 한눈에 보기
+
+| 항목 | 상태 | 비고 |
+| --- | --- | --- |
+| AC-95 `voice on/off/kinds/test` | ✅ 확인함 | 자동 테스트 + 실제 실행(임시 설정 폴더) |
+| AC-96 기본 종류만 읽고 `kinds`로 바꿈, 짧은 전용 문장 | ✅ 확인함 (자동 테스트) | 가짜 재생기 |
+| AC-97 문장은 환경 변수로만 전달, 제어 문자 제거 | ✅ 확인함 (자동 테스트) | Windows·macOS·Linux 명령 모두 고정 문자열 |
+| AC-98 소리 뒤에 재생, 한 번에 하나, 대기 2건 초과 시 버림 | ✅ 확인함 (자동 테스트) | |
+| AC-99 음성 없음·TTS 실패 시 알림 정상, 안내 1회 | ✅ 확인함 (자동 테스트) | |
+| AC-100 실행 중인 감시가 재시작 없이 설정을 따름 | ✅ 확인함 (자동 테스트) | 알림을 읽을 때마다 설정을 읽는 구조. 🖐️ 실제 데몬은 아래 2번 |
+| AC-101 `voice list` / `voice use` | ✅ 확인함 | 자동 테스트 + 실제 실행: 이 PC의 Microsoft Heami(ko-KR)·Zira(en-US)가 목록에 나옴, 이름 선택·없는 이름 거부 |
+| AC-102 `add liq f:BTC 10%,5%,2%` 입력과 거부 | ✅ 확인함 | 자동 테스트 + 실제 실행 |
+| AC-103 단계 진입·즉시 알림·복귀·재무장 | ✅ 확인함 (자동 테스트) | 거리 11→9→4→1.5→9→12→9% 시나리오 |
+| AC-104 같은 단계 쿨다운 반복, `list` 표시, 프리셋 `stages` | ✅ 확인함 | 자동 테스트 + 실제 실행(`list`에 `(3단계)`) |
+| AC-105 **귀로 확인** (Windows 한국어 음성) | 🖐️ 수동 확인 필요 | 아래 1번 |
+| AC-106 선물 데모에서 단계 진입 | 🖐️ 수동 확인 필요 | 아래 3번 |
+| macOS `say` · Linux `spd-say`/`espeak-ng` 음성 | 🖐️ 사용자 리뷰로 판단 | 새 기기가 생기면 직접 확인 |
+
+## 🖐️ 직접 확인해 주세요 (남은 버전 업그레이드가 끝난 뒤)
+
+1. **AC-105 — 귀로 확인 (약 2분)**
+   1. `blert voice list`로 `Microsoft Heami Desktop`이 보이는지 확인합니다.
+   2. `blert voice on` → `blert voice test` — "blert 음성 시험입니다…"가 한국어로 들려야 합니다.
+   3. `blert voice use Microsoft Zira Desktop` → `blert voice test` — 영어 음성으로 바뀌어야 합니다. `blert voice use default`로 되돌립니다.
+   4. `blert test warn` — **알림음이 먼저 울리고 끝난 뒤에** "시험 알림입니다"를 읽어야 합니다(`up`은 기본 설정에서 읽지 않습니다).
+2. **AC-100 — 실행 중인 감시에서 바로 반영**: `blert start` 후 다른 터미널에서 `blert voice on`, 이어서 `blert add price BTC above <현재가보다 조금 낮은 가격>`이 아니라 곧 발동할 `warn`/`account` 알림(예: 시험은 `blert test warn`)을 발생시켜 **재시작 없이** 읽는지 확인합니다. 끝나면 `blert voice off`, `blert stop`.
+3. **AC-106 — 선물 데모에서 단계 진입**: 선물 데모 계정(`MANUAL_CHECKS`의 선물 데모 준비 절차)에서 포지션을 잡고 `blert add liq f:BTC 10%,5%,2%` 후 `blert run`(또는 `start`)합니다. 마크 가격이 청산가에 가까워지며 **"주의 1/3단계" → "위험 2/3단계" → "긴급 3/3단계"** 알림이 단계가 깊어질 때마다 바로 오는지, 같은 단계에서는 5분 안에 반복되지 않는지 확인합니다(음성을 켜 두면 단계도 읽습니다).
+
+## ✅ 확인함 (Claude)
+
+2026-10-13, Windows 11, 빌드한 `dist/index.js`, 임시 `APPDATA`. `voice list`(이 PC의 Heami·Zira 음성 조회) → `voice on` → `voice kinds warn,account,up` → `voice use microsoft zira desktop`(대소문자·공백 허용) → `voice list`(선택 표시 `*`) → `voice use Nobody`(설치된 음성 안내, 종료 코드 1) → `voice off` → `add liq f:BTC 10%,5%,2%` → `list`(`(3단계)`)가 모두 기대대로 동작했습니다. 실제 소리는 귀로 확인할 수 없고 PC에서 소리가 나지 않게 하려고 `voice test`는 실행하지 않았습니다(위 1번으로 넘깁니다).
