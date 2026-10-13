@@ -56,7 +56,7 @@ blert run                               # 감시 시작 (종료: Ctrl+C)
 | `blert add <유형> ...` | 알림 추가: `price`, `change`, `volume`, `funding` |
 | `blert list [--all]` | 알림 목록 (`--all`: 발동이 끝난 알림 포함) |
 | `blert del` `pause` `resume <ID\|all>` | 삭제·일시정지·재개 |
-| `blert preset list\|install\|remove` | 프리셋: `major-swing`, `volume-burst`, `futures-heat` |
+| `blert preset list\|install\|remove` | 프리셋: `major-swing`, `volume-burst`, `futures-heat`. 파일·주소로도 설치 ([아래](#프리셋-공유-파일주소로-설치)) |
 | `blert run` | 감시 시작 |
 | `blert test [유형]` | 시험 알림 |
 | `blert sound on\|off\|test` | 소리 켜기·끄기·시험 |
@@ -142,7 +142,47 @@ blert channel remove           # 해제 (토큰도 키체인에서 삭제)
 4. API 키와 개인키는 어떤 경우에도 보내지 않습니다. 봇 토큰은 OS 키체인에만 저장하고 설정 파일에는 남기지 않습니다. 알림 문구는 텔레그램 서버를 거치며 거기에 남을 수 있습니다.
 5. 전송이 실패해도(오프라인 등) 데스크톱 알림과 소리는 그대로 동작합니다. 실패한 알림은 나중에 다시 보내지 않습니다.
 
-이 기능을 켠 경우에만 `api.telegram.org`로 요청이 나갑니다. 해제하면 다시 바이낸스로만 요청합니다. 또 하나, `blert sound set|theme`에 **내가 https 주소를 직접 입력한 경우에만** 그 주소로 파일을 내려받습니다.
+이 기능을 켠 경우에만 `api.telegram.org`로 요청이 나갑니다. 해제하면 다시 바이낸스로만 요청합니다. 또 하나, `blert sound set|theme`, `blert preset install`에 **내가 https 주소를 직접 입력한 경우에만** 그 주소로 파일을 내려받습니다.
+
+## 프리셋 공유 (파일·주소로 설치)
+
+내장 프리셋 말고도, 다른 사람이 만든 프리셋 파일을 설치할 수 있습니다.
+
+```bash
+blert preset install ./my-preset.json                                   # 내 PC의 파일 (네트워크 사용 없음)
+blert preset install https://example.com/preset.json --sha256 <해시>    # https 주소 (직접 입력했을 때만 접속)
+blert preset list                                                       # 설치된 프리셋과 출처·해시 확인
+blert preset remove my-preset                                           # 그 프리셋의 알림만 삭제
+```
+
+- 설치 전에 이름·버전·라이선스·출처·**규칙 목록(유형별 개수와 앞 10개)**·sha256을 보여 줍니다. **주소 방식은 `y`를 눌러야 설치**하고(기본 No), 파일 방식은 요약을 보여 주고 바로 설치합니다.
+- **주소 방식은 내가 명령에 직접 입력한 주소에만 접속합니다.** https만 허용하고, 크기(256KB)와 시간(10초) 제한이 있으며 다른 사이트로의 이동은 거부합니다. **접속한 서버에는 내 IP 주소가 보입니다.** 자동 갱신은 없습니다. 새 버전은 `remove` 후 다시 설치하세요.
+- `--sha256`에 사이트가 안내한 해시를 주면 내용이 같을 때만 설치합니다. 형식이 하나라도 틀리면 **아무것도 설치하지 않고** 문제 위치를 알려 줍니다.
+- 프리셋은 규칙 목록일 뿐 실행 코드가 아닙니다. 규칙의 출처는 항상 `preset:<이름>`으로 기록되고, 규칙의 값 범위는 `blert add`와 같습니다. 체결·잔고·청산가 알림이 들어 있으면 요약에 API 키 등록이 필요하다고 알려 줍니다.
+
+파일 형식 (규칙은 최대 50개, 문자열에 제어 문자가 있으면 거부):
+
+```json
+{
+  "schemaVersion": 1,
+  "slug": "btc-breakout",
+  "version": 1,
+  "name": "BTC 돌파 감시",
+  "description": "선택 항목",
+  "license": "CC0-1.0",
+  "author": "선택 항목",
+  "rules": [
+    { "type": "price", "market": "futures", "symbol": "BTCUSDT",
+      "condition": { "type": "price", "direction": "above", "price": 84500 },
+      "repeat": { "kind": "cooldown", "ms": 300000 } },
+    { "type": "change", "market": "spot", "symbol": "ETHUSDT",
+      "condition": { "type": "change", "pct": 5, "windowMs": 3600000, "direction": "both" },
+      "sound": "warn", "name": "ETH 급변" }
+  ]
+}
+```
+
+`slug`는 영문 소문자·숫자·하이픈 3~40자이고 내장 프리셋 이름(`major-swing` 등)과 겹치면 안 됩니다. `type`은 `price`·`change`·`volume`·`funding`·`fill`·`balance`·`liq`이고, `repeat`를 생략하면 유형별 기본값을 씁니다. 심볼은 `BTCUSDT`처럼 전체 이름으로 씁니다.
 
 ## 내 알림 소리 등록
 
