@@ -10,7 +10,7 @@ export const INDEX_SCHEMA_VERSION = 1;
 export const SOUND_LICENSES: readonly string[] = ['CC0-1.0'];
 export const PRESET_LICENSES: readonly string[] = ['CC0-1.0', 'MIT'];
 /** 매수·매도 권유나 수익 보장으로 읽힐 수 있는 표현 (D-87⑤, D-133). 이름·설명에 쓰지 않는다 */
-const FORBIDDEN_WORDING = new RegExp(
+export const FORBIDDEN_WORDING = new RegExp(
   '추천|매수|매도|수익|보장|필승|대박|확실|무조건|사세요|파세요|\\b(buy|sell|profit|profits|guarantee|guaranteed|recommend|recommended|signal|signals)\\b',
   'i',
 );
