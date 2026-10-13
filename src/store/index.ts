@@ -2,6 +2,7 @@ import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 import { mkdirSync, promises as fs, statSync, watch as fsWatch } from 'node:fs';
 import type { Rule, RuleState, SoundKind } from '../shared/types.js';
+import type { QuietConfig } from '../shared/quiet.js';
 import { BlertError } from '../shared/errors.js';
 import { systemClock, iso, type Clock } from '../shared/clock.js';
 import { atomicWrite, readJson, writeJson, type FileSpec } from './jsonfile.js';
@@ -55,6 +56,10 @@ export interface Config {
   soundOverrides?: Partial<Record<SoundKind, SoundOverride>>;
   /** 음성 알림 (v1.3, D-112·D-116·D-121). 선택 항목이라 schemaVersion은 올리지 않는다 */
   voice?: { enabled: boolean; kinds: SoundKind[]; voiceName?: string };
+  /** 조용한 시간 (v1.5, D-135~D-140). 선택 항목이라 schemaVersion은 올리지 않는다. 알림을 보낼 때마다 읽는다 */
+  quiet?: QuietConfig;
+  /** 알림 기록 (v1.5, D-145). 없으면 켜짐으로 본다 */
+  history?: { enabled: boolean };
 }
 export interface SoundOverride {
   /** sounds/ 안의 파일 이름 (blert가 정한 `<종류>-<해시 12자리>.wav`) */

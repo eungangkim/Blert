@@ -3,6 +3,7 @@ import { RUN_LOCK_STALE_MS } from '../shared/defaults.js';
 import { pidAlive, type PidFile, type StatusFile } from '../store/index.js';
 import { t } from '../i18n/index.js';
 import { formatLocalDateTime } from './format.js';
+import { quietStatusLinesIfOn } from './quiet.js';
 import { serviceStatusLine } from './service.js';
 import type { Command, Ctx } from './types.js';
 
@@ -161,6 +162,9 @@ export const statusCommand: Command = {
     // 자동 시작 등록 여부 한 줄 (D-66)
     const line = await serviceStatusLine(deps.service);
     if (line) io.out(line);
+    // 조용한 시간이 켜져 있으면 알려 준다 (D-141). 설정을 읽지 못해도 status는 계속된다
+    const quiet = await store.loadConfig().then((c) => c.quiet, () => undefined);
+    quietStatusLinesIfOn(quiet, daemon.now()).forEach((l) => io.out(l));
     return 0;
   },
 };
