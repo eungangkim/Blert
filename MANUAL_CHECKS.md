@@ -642,7 +642,7 @@ blert는 이를 피하는 방식(`-EncodedCommand`·WinRT 미사용)으로 알�
    2. `blert voice on` → `blert voice test` — "blert 음성 시험입니다…"가 한국어로 들려야 합니다.
    3. `blert voice use Microsoft Zira Desktop` → `blert voice test` — 영어 음성으로 바뀌어야 합니다. `blert voice use default`로 되돌립니다.
    4. `blert test warn` — **알림음이 먼저 울리고 끝난 뒤에** "시험 알림입니다"를 읽어야 합니다(`up`은 기본 설정에서 읽지 않습니다).
-2. **AC-100 — 실행 중인 감시에서 바로 반영**: `blert start` 후 다른 터미널에서 `blert voice on`, 이어서 `blert add price BTC above <현재가보다 조금 낮은 가격>`이 아니라 곧 발동할 `warn`/`account` 알림(예: 시험은 `blert test warn`)을 발생시켜 **재시작 없이** 읽는지 확인합니다. 끝나면 `blert voice off`, `blert stop`.
+2. **AC-100 — 실행 중인 감시에서 바로 반영**: `blert start`로 감시를 켜 둔 채, 다른 터미널에서 `blert voice on`을 실행합니다. 그 뒤 감시 중인 `warn`/`account` 알림(예: 곧 발동할 청산가 알림이나 체결)이 울릴 때 **감시를 재시작하지 않았는데도** 음성이 나오는지 확인합니다. (감시 없이 설정 반영만 보려면 `voice on` 후 `blert test warn`을 실행해도 같은 경로입니다.) 끝나면 `blert voice off`, `blert stop`.
 3. **AC-106 — 선물 데모에서 단계 진입**: 선물 데모 계정(`MANUAL_CHECKS`의 선물 데모 준비 절차)에서 포지션을 잡고 `blert add liq f:BTC 10%,5%,2%` 후 `blert run`(또는 `start`)합니다. 마크 가격이 청산가에 가까워지며 **"주의 1/3단계" → "위험 2/3단계" → "긴급 3/3단계"** 알림이 단계가 깊어질 때마다 바로 오는지, 같은 단계에서는 5분 안에 반복되지 않는지 확인합니다(음성을 켜 두면 단계도 읽습니다).
 
 ## ✅ 확인함 (Claude)
