@@ -1,4 +1,5 @@
 import { BlertError } from '../shared/errors.js';
+import { ASSET_NAME, LIQ_MAX_PCT_EXCLUSIVE } from '../shared/limits.js';
 import type { Rule, SoundKind } from '../shared/types.js';
 import { DEFAULT_REPEAT } from '../shared/defaults.js';
 import { t } from '../i18n/index.js';
@@ -21,7 +22,7 @@ function usageError(type: AddType): BlertError {
 /** `all` 또는 자산 이름(BTC, USDT …). 자산은 대문자로 정규화한다. */
 function parseAsset(raw: string): string {
   if (raw.toLowerCase() === 'all') return '*';
-  if (!/^[A-Za-z0-9]{2,10}$/.test(raw)) throw new BlertError('err.asset', { value: raw });
+  if (!ASSET_NAME.test(raw.toUpperCase())) throw new BlertError('err.asset', { value: raw });
   return raw.toUpperCase();
 }
 
@@ -89,7 +90,7 @@ export function buildRule(rest: string[], values: Map<string, string>): RuleDraf
       const { market, symbol } = parseSymbol(a[0]!);
       if (market !== 'futures') throw new BlertError('err.liqFutures', { value: a[0]! });
       const pct = parsePercent(a[1]!);
-      if (pct >= 100) throw new BlertError('err.liqRange', { value: a[1]! });
+      if (pct >= LIQ_MAX_PCT_EXCLUSIVE) throw new BlertError('err.liqRange', { value: a[1]! });
       draft = { type, market, symbol, condition: { type, pct } };
       break;
     }

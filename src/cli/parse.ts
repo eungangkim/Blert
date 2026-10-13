@@ -1,6 +1,6 @@
 import { BlertError } from '../shared/errors.js';
 import type { Market, RepeatPolicy } from '../shared/types.js';
-import { COOLDOWN_MAX_MS, COOLDOWN_MIN_MS } from '../shared/defaults.js';
+import { HYSTERESIS_MAX_PCT, MULTIPLE_MIN_EXCLUSIVE, SYMBOL_BODY, inDurationRange } from '../shared/limits.js';
 import { STABLE_QUOTES } from '../shared/symbol.js';
 import { suggest } from './suggest.js';
 
@@ -9,7 +9,7 @@ import { suggest } from './suggest.js';
 export function parseSymbol(raw: string): { market: Market; symbol: string } {
   const futures = /^f:/i.test(raw);
   const body = (futures ? raw.slice(2) : raw).toUpperCase();
-  if (!/^[A-Z0-9]{2,20}$/.test(body)) throw new BlertError('err.symbol', { value: raw });
+  if (!SYMBOL_BODY.test(body)) throw new BlertError('err.symbol', { value: raw });
   const full = STABLE_QUOTES.some((q) => body.endsWith(q) && body.length > q.length);
   return { market: futures ? 'futures' : 'spot', symbol: full ? body : `${body}USDT` };
 }
@@ -39,14 +39,14 @@ export function parseDuration(raw: string): number {
 /** 변동률·거래량 구간 범위: 1분 ~ 24시간 (히스토리 메모리와 백필 한도) */
 export function parseWindow(raw: string): number {
   const ms = parseDuration(raw);
-  if (ms < COOLDOWN_MIN_MS || ms > COOLDOWN_MAX_MS) throw new BlertError('err.windowRange', { value: raw });
+  if (!inDurationRange(ms)) throw new BlertError('err.windowRange', { value: raw });
   return ms;
 }
 
 export function parseMultiple(raw: string): number {
   const m = /^x(\d+(?:\.\d+)?)$/i.exec(raw);
   const n = m ? Number(m[1]) : NaN;
-  if (!(n > 1)) throw new BlertError('err.multiple', { value: raw });
+  if (!(n > MULTIPLE_MIN_EXCLUSIVE)) throw new BlertError('err.multiple', { value: raw });
   return n;
 }
 
@@ -66,13 +66,13 @@ export function parseMode(raw: string): RepeatPolicy {
   const cd = /^cooldown:(.+)$/.exec(raw);
   if (cd) {
     const ms = parseDuration(cd[1]!);
-    if (ms < COOLDOWN_MIN_MS || ms > COOLDOWN_MAX_MS) throw new BlertError('err.modeRange', { value: raw });
+    if (!inDurationRange(ms)) throw new BlertError('err.modeRange', { value: raw });
     return { kind: 'cooldown', ms };
   }
   const hy = /^hyst:(.+)$/.exec(raw);
   if (hy) {
     const widthPct = parsePercent(hy[1]!);
-    if (widthPct > 100) throw new BlertError('err.modeHyst', { value: raw });
+    if (widthPct > HYSTERESIS_MAX_PCT) throw new BlertError('err.modeHyst', { value: raw });
     return { kind: 'hysteresis', widthPct };
   }
   throw new BlertError('err.mode', { value: raw });
