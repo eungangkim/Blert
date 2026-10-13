@@ -211,7 +211,7 @@
   "err.themeDeclined": "'{name}' 테마를 설치하지 않았습니다. 예: blert sound theme https://example.com/theme.json",
   "sound.set.summary": "'{kind}' 칸에 설치할 소리\n  출처: {origin}\n  크기: {kb}KB, 길이: {sec}초\n  sha256: {sha}",
   "sound.set.ask": "이 소리를 설치할까요? 접속한 서버에는 내 IP가 보입니다. (y/N) ",
-  "sound.set.done": "'{kind}' 소리를 등록했습니다({sec}초). `blert sound test {kind}`로 들어 보세요. 되돌리려면 `blert sound reset {kind}`.",
+  "sound.set.done": "'{kind}' 소리를 등록했습니다({sec}초). 들어 보기: blert sound test {kind} / 되돌리기: blert sound reset {kind}",
   "sound.theme.summary": "테마 '{name}' {version} (라이선스: {license})\n  접속할 호스트: {hosts}",
   "sound.theme.ask": "이 테마의 소리 4개를 내려받아 설치할까요? 접속한 서버에는 내 IP가 보입니다. (y/N) ",
   "sound.theme.done": "테마 '{name}' {version}을(를) 적용했습니다. `blert sound list`로 확인하세요. 되돌리려면 `blert sound reset all`.",

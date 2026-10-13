@@ -541,3 +541,43 @@ blert는 이를 피하는 방식(`-EncodedCommand`·WinRT 미사용)으로 알�
 7. 배포 후 확인: ✅ `npm view @eungang/blert`가 `1.0.0`(latest), 라이선스 MIT, `bin`은 `blert`, **provenance(SLSA v1)** 있음. `npm audit signatures`가 설치된 3개 패키지의 서명(attestation)을 확인했습니다. 빈 폴더에서 `npm install @eungang/blert@1.0.0`과 `npx @eungang/blert@1.0.0 --help`가 동작합니다. 🖐️ **AC-72의 새 PC 확인**(`npx @eungang/blert init`이 첫 알림까지 되는지)은 사용자가 직접 해 주세요.
 
 ⚠️ npm은 비슷한 이름이 이미 있으면 새 이름 등록을 막을 수 있습니다. `blert`가 지금은 비어 있지만 실제 배포 때 거절될 수 있습니다. 그때는 이름을 정해야 합니다(문서에 없는 결정이라 선택지를 정리해 드립니다).
+
+---
+
+# v1.1 — 소리 등록 (FR-NOTI-04, AC-73 ~ AC-84)
+
+## 한눈에 보기
+
+| 항목 | 상태 | 비고 |
+| --- | --- | --- |
+| AC-73 파일로 등록, `sound test`가 사용자 소리를 재생 | ✅ 확인함 | 자동 테스트 + 실제 실행(임시 설정 폴더): 등록·`sounds/up-<해시12>.wav` 저장·`list` 표시 |
+| AC-74 주소 등록: 출처·크기·길이·해시 표시 후 y/N | ✅ 확인함 (자동 테스트) | 가짜 서버. 기본 No |
+| AC-75 형식이 틀린 파일 거부 | ✅ 확인함 | 자동 테스트 + 실제 실행(종료 코드 1, 이유와 예시) |
+| AC-76 `--sha256` 불일치 거부 | ✅ 확인함 (자동 테스트) | 동의를 묻기 전에 거부 |
+| AC-77 http·리다이렉트·크기·시간 제한, 자동 요청 없음 | ✅ 확인함 | 자동 테스트 + 실제 실행(http 거부) |
+| AC-78 테마 일괄 적용, 하나라도 실패하면 원래대로 | ✅ 확인함 (자동 테스트) | 로컬·주소 테마, 폴더 밖 경로 거부 |
+| AC-79 `reset up` / `reset all` | ✅ 확인함 | 자동 테스트 + 실제 실행 |
+| AC-80 안전한 파일명, 기록에 쿼리 없음 | ✅ 확인함 (자동 테스트) | |
+| AC-81 파일 삭제·손상 시 번들 소리, 경고 1회 | ✅ 확인함 (자동 테스트) | |
+| AC-82 실행 중인 데몬이 재시작 없이 새 소리 | ✅ 확인함 (자동 테스트) | 재생할 때마다 설정을 읽는 구조. 🖐️ 실제 데몬에서 귀로 확인은 아래 2번 |
+| AC-83 `sound list` | ✅ 확인함 | 자동 테스트 + 실제 실행 |
+| AC-84 설치한 소리를 **귀로** 확인 (Windows) | 🖐️ 수동 확인 필요 | 아래 1번 |
+| 실제 https 서버에서 주소 방식 내려받기 | 🖐️ 수동 확인 필요 | 아래 3번 (자동 테스트는 가짜 서버만 씀) |
+| macOS·Linux 재생 | 🖐️ 사용자 리뷰로 판단 | 새 기기가 생기면 직접 확인 |
+
+## 🖐️ 직접 확인해 주세요
+
+1. **AC-84 — 귀로 확인 (약 2분)**
+   1. 3초 이하의 PCM 16비트 WAV 파일을 준비합니다(예: 번들 `assets/sounds/up.wav`를 복사해 이름만 바꿔도 됩니다).
+   2. `blert sound set up C:\경로\내소리.wav` → `blert sound test up` — 등록한 소리가 들려야 합니다.
+   3. `blert sound list` — `up: 내 소리 — 출처 file …`로 보여야 합니다.
+   4. `blert sound reset up` → `blert sound test up` — 원래 번들 소리로 돌아와야 합니다.
+2. **AC-82 — 데몬에서 바로 반영**
+   1. `blert add price BTCUSDT above <현재가보다 조금 높은 가격>`처럼 곧 발동할 알림을 만들고 `blert start`.
+   2. 발동 전에 다른 터미널에서 `blert sound set up C:\경로\내소리.wav`.
+   3. 알림이 발동할 때 **재시작 없이** 등록한 소리가 나와야 합니다. 끝나면 `blert sound reset all`, `blert stop`.
+3. **주소 방식 (실제 서버)**: 직접 올려 둔 WAV의 https 주소로 `blert sound set up <주소> --sha256 <해시>`를 실행해 요약(출처·크기·길이·해시)이 나오고 `y`로 설치되는지 확인합니다. 해시는 PowerShell의 `Get-FileHash <파일> -Algorithm SHA256`로 구합니다. 일부러 틀린 해시를 넣으면 설치되지 않아야 합니다.
+
+## ✅ 확인함 (Claude)
+
+2026-10-13, Windows 11, 빌드한 `dist/index.js`, 임시 `APPDATA`. `sound list` → `sound set up <WAV>` → `sound list`(내 소리 표시) → `sound set up <깨진 파일>`(종료 코드 1, 이유와 예시) → `sound set up http://…`(https만 허용, 종료 코드 1) → `sound test up` → `sounds/`에 `up-<해시12>.wav` 1개 → `sound reset all`(파일 삭제)이 모두 기대대로 동작했습니다. 실제 재생 소리는 귀로 확인할 수 없어 위 1번으로 넘깁니다.

@@ -60,6 +60,7 @@ blert run                               # 감시 시작 (종료: Ctrl+C)
 | `blert run` | 감시 시작 |
 | `blert test [유형]` | 시험 알림 |
 | `blert sound on\|off\|test` | 소리 켜기·끄기·시험 |
+| `blert sound set\|theme\|reset\|list` | 내 소리 등록·테마·되돌리기·확인 ([아래](#내-알림-소리-등록)) |
 
 모든 명령에 `--help`가 있고, 고급 옵션은 `blert --help --advanced`에서 볼 수 있습니다.
 
@@ -141,11 +142,30 @@ blert channel remove           # 해제 (토큰도 키체인에서 삭제)
 4. API 키와 개인키는 어떤 경우에도 보내지 않습니다. 봇 토큰은 OS 키체인에만 저장하고 설정 파일에는 남기지 않습니다. 알림 문구는 텔레그램 서버를 거치며 거기에 남을 수 있습니다.
 5. 전송이 실패해도(오프라인 등) 데스크톱 알림과 소리는 그대로 동작합니다. 실패한 알림은 나중에 다시 보내지 않습니다.
 
-이 기능을 켠 경우에만 `api.telegram.org`로 요청이 나갑니다. 해제하면 다시 바이낸스로만 요청합니다.
+이 기능을 켠 경우에만 `api.telegram.org`로 요청이 나갑니다. 해제하면 다시 바이낸스로만 요청합니다. 또 하나, `blert sound set|theme`에 **내가 https 주소를 직접 입력한 경우에만** 그 주소로 파일을 내려받습니다.
+
+## 내 알림 소리 등록
+
+알림 종류별 4칸(`up` 상향, `down` 하향, `account` 계정, `warn` 경고)의 소리를 바꿀 수 있습니다. 소리 파일은 **WAV(PCM 16비트), 모노·스테레오, 8,000~48,000Hz, 3초 이하, 512KB 이하**여야 하고, 저장하기 전에 blert가 직접 검사합니다.
+
+```bash
+blert sound set up ./alert.wav                          # 내 PC의 파일로 등록
+blert sound set up https://example.com/up.wav --sha256 <해시>   # 주소로 등록 (직접 입력했을 때만 접속)
+blert sound theme ./theme.json                          # 4칸을 한 번에 (파일 또는 https 주소)
+blert sound list                                        # 4칸이 번들/내 소리 중 무엇인지 확인
+blert sound test up                                     # 들어 보기
+blert sound reset up                                    # 번들 소리로 되돌리기 (all: 전부)
+```
+
+- 등록한 소리는 설정 폴더의 `sounds/`에 복사되고, **실행 중인 감시(`blert start`)도 재시작 없이** 다음 알림부터 새 소리를 씁니다.
+- 파일이 지워지거나 손상되면 번들 소리로 대신 재생하고 안내를 한 번 보여 줍니다. 알림 자체는 정상입니다.
+- **주소 방식은 내가 명령에 직접 입력한 주소에만 접속합니다.** https만 허용하고, 크기(소리 512KB·테마 64KB)와 시간(10초) 제한이 있으며, 다른 사이트로의 이동은 거부합니다. 설치 전에 출처·크기·길이·해시를 보여 주고 `y`를 눌러야 설치합니다. **접속한 서버에는 내 IP 주소가 보입니다.** 파일 방식은 네트워크를 쓰지 않습니다.
+- 테마 파일은 `{ "schemaVersion": 1, "name", "version", "license", "sounds": { "up": { "url", "sha256" }, … } }` 형식이며 해시가 필수입니다. 로컬 테마의 소리는 테마 파일이 있는 폴더 안의 상대 경로만 쓸 수 있습니다.
+- 저작권이 있는 소리는 쓰지 마세요. 번들 소리는 CC0이고, 다른 소리의 권리는 등록하는 사람에게 있습니다.
 
 ## 저장 위치
 
-Windows `%APPDATA%\blert\`, macOS·Linux `~/.config/blert/` — `config.json`, `rules.json`, `state.json`, `logs/`.
+Windows `%APPDATA%\blert\`, macOS·Linux `~/.config/blert/` — `config.json`, `rules.json`, `state.json`, `logs/`, `sounds/`(등록한 소리).
 로그는 7일 또는 10MB까지 보관합니다.
 
 ## 문제 해결
