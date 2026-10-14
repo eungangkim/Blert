@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildIndex, type GalleryIndex, type PresetEntry, type ThemeEntry } from '../gallery/scripts/lib.js';
@@ -244,6 +244,13 @@ export async function buildSite(outDir: string, ref: string): Promise<string[]> 
   for (const asset of ['style.css', 'app.js']) {
     await copyFile(join(HERE, asset), join(outDir, asset));
     written.push(asset);
+  }
+  // 검색엔진 소유 확인 파일(예: Google Search Console의 google<16자리>.html)은 내용 그대로 사이트 루트에 둔다
+  for (const name of await readdir(HERE)) {
+    if (/^google[0-9a-f]{16}\.html$/.test(name)) {
+      await copyFile(join(HERE, name), join(outDir, name));
+      written.push(name);
+    }
   }
   await writeFile(join(outDir, '.nojekyll'), '');
   return written;

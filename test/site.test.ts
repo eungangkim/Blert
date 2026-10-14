@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -173,6 +173,11 @@ describe('정적 사이트 (D-133)', () => {
     try {
       const { index } = await site();
       const written = await buildSite(dir, REF);
+      // 검색엔진 소유 확인 파일(google<16자리>.html)은 내용 그대로 사이트 루트에 복사된다
+      for (const name of (await readdir(join(ROOT, 'site'))).filter((n) => /^google[0-9a-f]{16}\.html$/.test(n))) {
+        expect(written).toContain(name);
+        expect(await readFile(join(dir, name), 'utf8')).toBe(await readFile(join(ROOT, 'site', name), 'utf8'));
+      }
       for (const t of index.themes) {
         for (const s of Object.values(t.sounds)) {
           expect(written).toContain(s.file);
