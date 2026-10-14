@@ -191,4 +191,12 @@ describe('정적 사이트 (D-133)', () => {
       for (const w of words) expect(html, path).toContain(w);
     }
   });
+
+  it('D-133 style.css·app.js 주소에 내용 해시가 붙어 고친 뒤 옛 파일이 캐시에서 쓰이지 않는다', async () => {
+    const { files } = await site();
+    for (const f of files) {
+      expect(f.html, f.path).toMatch(/href="(\.\.\/)?style\.css\?v=[0-9a-f]{10}"/);
+      expect(f.html, f.path).toMatch(/src="(\.\.\/)?app\.js\?v=[0-9a-f]{10}"/);
+    }
+  });
 });

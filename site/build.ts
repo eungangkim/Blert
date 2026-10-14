@@ -1,4 +1,6 @@
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,6 +16,11 @@ import { SPONSORS, type Sponsor } from './sponsors.js';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
 const RAW = 'https://raw.githubusercontent.com/eungangkim/Blert';
+
+/** style.css·app.js 주소에 내용 해시를 붙여, 고친 뒤에도 브라우저가 옛 파일을 그대로 쓰지 않게 한다 */
+const assetVer = (name: string): string => createHash('sha256').update(readFileSync(join(HERE, name))).digest('hex').slice(0, 10);
+const STYLE_VER = assetVer('style.css');
+const APP_VER = assetVer('app.js');
 
 export const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 const fill = (s: string, vars: Record<string, string>): string => s.replace(/\{(\w+)\}/g, (_, k: string) => vars[k] ?? `{${k}}`);
@@ -49,10 +56,10 @@ function layout(lang: Lang, id: PageId, body: string): string {
 <title>${esc(c.titles[id])}</title>
 <meta name="description" content="${esc(c.descriptions[id])}">
 <meta name="referrer" content="no-referrer">
-<link rel="stylesheet" href="${up}style.css">
+<link rel="stylesheet" href="${up}style.css?v=${STYLE_VER}">
 <link rel="alternate" hreflang="ko" href="${up}${alt('ko')}">
 <link rel="alternate" hreflang="en" href="${up}${alt('en')}">
-<script src="${up}app.js" defer></script>
+<script src="${up}app.js?v=${APP_VER}" defer></script>
 </head>
 <body data-copied="${esc(c.copied)}">
 <a class="skip" href="#main">${esc(c.skip)}</a>
