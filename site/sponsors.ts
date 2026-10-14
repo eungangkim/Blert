@@ -9,4 +9,6 @@ export interface Sponsor {
   url: string;
 }
 
-export const SPONSORS: readonly Sponsor[] = [];
+export const SPONSORS: readonly Sponsor[] = [
+  { labelKo: 'Buy Me a Coffee로 후원', labelEn: 'Support on Buy Me a Coffee', url: 'https://buymeacoffee.com/kimeungang' },
+];

@@ -44,7 +44,8 @@ describe('정적 사이트 (D-133)', () => {
       expect(f.html, f.path).not.toMatch(/<script(?![^>]*\bsrc=)/i); // 인라인 스크립트 없음
       for (const m of f.html.matchAll(/\b(?:src|href)="([^"]+)"/g)) {
         const url = m[1]!;
-        if (/^https?:/.test(url)) expect(url, f.path).toMatch(/^https:\/\/(github\.com\/eungangkim\/Blert|www\.npmjs\.com\/package\/@eungang\/blert|raw\.githubusercontent\.com\/eungangkim\/Blert)/);
+        // 후원 링크(site/sponsors.ts)는 사용자가 직접 정한 주소만 허용한다
+        if (/^https?:/.test(url) && !SPONSORS.some((sp) => sp.url === url)) expect(url, f.path).toMatch(/^https:\/\/(github\.com\/eungangkim\/Blert|www\.npmjs\.com\/package\/@eungang\/blert|raw\.githubusercontent\.com\/eungangkim\/Blert)/);
       }
     }
     const css = await readFile(join(ROOT, 'site', 'style.css'), 'utf8');
@@ -64,7 +65,9 @@ describe('정적 사이트 (D-133)', () => {
 
   it('D-133 페이지 문구에 권유·보장으로 읽힐 수 있는 표현이 없다 (D-87⑤)', async () => {
     const { files } = await site();
-    for (const f of files) expect(text(f.html), f.path).not.toMatch(FORBIDDEN_WORDING);
+    // 후원 서비스의 이름(예: Buy Me a Coffee)은 서비스 고유 명칭이라 검사에서 뺀다
+    const withoutSponsorNames = (t: string) => SPONSORS.reduce((acc, sp) => acc.split(sp.labelKo).join('').split(sp.labelEn).join(''), t);
+    for (const f of files) expect(withoutSponsorNames(text(f.html)), f.path).not.toMatch(FORBIDDEN_WORDING);
   });
 
   it('D-133 영어 페이지에는 언어 전환 링크 말고는 한글이 없다', async () => {
