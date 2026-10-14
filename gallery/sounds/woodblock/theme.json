@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "name": "Woodblock",
+  "version": "1",
+  "license": "CC0-1.0",
+  "sounds": {
+    "up": {
+      "url": "up.wav",
+      "sha256": "221c651af01b214c9d25b08c4c522849965c1a8c877e3303ebfc72e17dabf37a"
+    },
+    "down": {
+      "url": "down.wav",
+      "sha256": "83559de3e2900941f03cea5ce164189ec3624418b4189b851c5f94733127ec20"
+    },
+    "account": {
+      "url": "account.wav",
+      "sha256": "9a001c26e0314bab01f93aeaaaf133a04c611f259d2daaf25f60ce34f00e173e"
+    },
+    "warn": {
+      "url": "warn.wav",
+      "sha256": "57ded5948c2f2f76078d447d02b383f3cf24a7b1c63dec535c2eaeb4b2c3cf2b"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "name": "Plucked string",
+  "version": "1",
+  "license": "CC0-1.0",
+  "sounds": {
+    "up": {
+      "url": "up.wav",
+      "sha256": "5fb0757abd5708b99336154000192ac8edb6ca0f9bab6deb84cb5d669329f5c9"
+    },
+    "down": {
+      "url": "down.wav",
+      "sha256": "428dcda325d0e549f04d058bd537e845b74f0430edff70b937737bf85dc93eca"
+    },
+    "account": {
+      "url": "account.wav",
+      "sha256": "7f56b52db3bcab9afc68ad8c0995c8f1669c23abf422110b95bf631cdac07b13"
+    },
+    "warn": {
+      "url": "warn.wav",
+      "sha256": "870d35bd54c0f9e8abb56cd64c404e9527c447f2550ff712484ecec57d0e81a6"
+    }
+  }
+}

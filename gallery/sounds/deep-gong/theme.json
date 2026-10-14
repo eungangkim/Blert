@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "name": "Deep gong",
+  "version": "1",
+  "license": "CC0-1.0",
+  "sounds": {
+    "up": {
+      "url": "up.wav",
+      "sha256": "380b6a1c9a175552df79229fc8945603f021733629373e607cf8905810244380"
+    },
+    "down": {
+      "url": "down.wav",
+      "sha256": "04f3ca3fc43742be47735ac81e8bf7520bf7512e4a966a3d3d27bfc5de099d91"
+    },
+    "account": {
+      "url": "account.wav",
+      "sha256": "15d8415eb48a239c3edb682c5de993003f40c250dc0b3d88dcd68a029fb59547"
+    },
+    "warn": {
+      "url": "warn.wav",
+      "sha256": "80d2f979d3ada725c1df3cddd6d3e17c242e87a3bf40f34888fc13681a73ea72"
+    }
+  }
+}

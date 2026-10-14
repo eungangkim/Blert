@@ -45,7 +45,7 @@ function layout(lang: Lang, id: PageId, body: string): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self'; media-src 'self'; base-uri 'none'; form-action 'none'">
 <title>${esc(c.titles[id])}</title>
 <meta name="description" content="${esc(c.descriptions[id])}">
 <meta name="referrer" content="no-referrer">
@@ -144,6 +144,9 @@ ${codeBlock(c, cmd)}
 </article>`;
 }
 
+/** 미리듣기 버튼의 순서 */
+const PLAY_KINDS = ['up', 'down', 'account', 'warn'] as const;
+
 function themeCard(lang: Lang, ref: string, t: ThemeEntry): string {
   const c = content(lang);
   const g = c.gallery;
@@ -152,6 +155,8 @@ function themeCard(lang: Lang, ref: string, t: ThemeEntry): string {
 <h3>${esc(t.name)}</h3>
 <p>${esc(g.themeText[t.slug] ?? '')}</p>
 <p class="meta"><span class="tag">${esc(g.soundsLabel)}</span> <span class="tag">${esc(t.license)}</span> <span class="tag">${esc(g.reqTheme)}</span></p>
+<p class="label">${esc(g.previewLabel)}</p>
+<p class="play">${PLAY_KINDS.map((k) => `<button type="button" class="playbtn" data-play="${esc(prefixTo(lang) + t.sounds[k]!.file)}" aria-label="${esc(fill(g.playAria, { kind: g.kindNames[k] }))}">▶ ${esc(g.kindNames[k])}</button>`).join(' ')}</p>
 <p class="label">${esc(g.installLabel)}</p>
 ${codeBlock(c, cmd)}
 <p class="note">${esc(g.themeHashNote)}</p>
@@ -169,9 +174,16 @@ function gallery(lang: Lang, index: GalleryIndex, ref: string): string {
 ${index.presets.map((p) => presetCard(lang, ref, p)).join('\n')}
 </div>
 <h2>${esc(g.themesTitle)}</h2>
+<p class="note">${esc(g.previewNote)}</p>
 <div class="grid">
 ${index.themes.map((t) => themeCard(lang, ref, t)).join('\n')}
 </div>
+<h2>${esc(g.own.title)}</h2>
+<p>${esc(g.own.intro)}</p>
+<ol class="steps">
+${g.own.steps.map((st) => `<li><h3>${esc(st.title)}</h3><p>${fill(st.body, { repo: REPO })}</p>${st.code ? codeBlock(c, st.code) : ''}</li>`).join('\n')}
+</ol>
+<p class="note">${fill(g.own.note, { repo: REPO })}</p>
 <h2>${esc(g.verifyTitle)}</h2>
 <p>${fill(g.verify, { repo: REPO })}</p>`;
 }
@@ -213,6 +225,14 @@ export async function buildSite(outDir: string, ref: string): Promise<string[]> 
   for (const f of renderSite(index, ref)) {
     await writeFile(join(outDir, f.path), f.html);
     written.push(f.path);
+  }
+  // 미리듣기용 소리 파일: 같은 사이트 안의 파일만 재생한다
+  for (const t of index.themes) {
+    for (const sound of Object.values(t.sounds)) {
+      await mkdir(dirname(join(outDir, sound.file)), { recursive: true });
+      await copyFile(join(ROOT, 'gallery', sound.file), join(outDir, sound.file));
+      written.push(sound.file);
+    }
   }
   for (const asset of ['style.css', 'app.js']) {
     await copyFile(join(HERE, asset), join(outDir, asset));

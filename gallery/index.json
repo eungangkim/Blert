@@ -68,6 +68,146 @@
   ],
   "themes": [
     {
+      "slug": "deep-gong",
+      "name": "Deep gong",
+      "version": "1",
+      "license": "CC0-1.0",
+      "file": "sounds/deep-gong/theme.json",
+      "sha256": "f2aaefa6b056bd4779751e1533330c06a8c360d689448ca1b6a47b0a1eb0e42b",
+      "bytes": 626,
+      "sounds": {
+        "up": {
+          "file": "sounds/deep-gong/up.wav",
+          "sha256": "380b6a1c9a175552df79229fc8945603f021733629373e607cf8905810244380",
+          "bytes": 81188,
+          "ms": 1840
+        },
+        "down": {
+          "file": "sounds/deep-gong/down.wav",
+          "sha256": "04f3ca3fc43742be47735ac81e8bf7520bf7512e4a966a3d3d27bfc5de099d91",
+          "bytes": 81188,
+          "ms": 1840
+        },
+        "account": {
+          "file": "sounds/deep-gong/account.wav",
+          "sha256": "15d8415eb48a239c3edb682c5de993003f40c250dc0b3d88dcd68a029fb59547",
+          "bytes": 74132,
+          "ms": 1680
+        },
+        "warn": {
+          "file": "sounds/deep-gong/warn.wav",
+          "sha256": "80d2f979d3ada725c1df3cddd6d3e17c242e87a3bf40f34888fc13681a73ea72",
+          "bytes": 75014,
+          "ms": 1700
+        }
+      }
+    },
+    {
+      "slug": "glass-ping",
+      "name": "Glass ping",
+      "version": "1",
+      "license": "CC0-1.0",
+      "file": "sounds/glass-ping/theme.json",
+      "sha256": "a2be40aa9a611b930e1cb37b74aeae6b072c1ef1b53b45cb07cbae6ba2849641",
+      "bytes": 627,
+      "sounds": {
+        "up": {
+          "file": "sounds/glass-ping/up.wav",
+          "sha256": "11eb716e6d397bb676f01e35393ab626b1d84d46b39280151440984364d798e8",
+          "bytes": 34882,
+          "ms": 790
+        },
+        "down": {
+          "file": "sounds/glass-ping/down.wav",
+          "sha256": "2818d4d15dc424c9eb69e9e275bdb7d7b9c7d90cbc8985127bec01850460136d",
+          "bytes": 34882,
+          "ms": 790
+        },
+        "account": {
+          "file": "sounds/glass-ping/account.wav",
+          "sha256": "c0a79afaf30bfa14d48474d46f89f52c17209bab9e50776dd4cea3511e5e933e",
+          "bytes": 34000,
+          "ms": 770
+        },
+        "warn": {
+          "file": "sounds/glass-ping/warn.wav",
+          "sha256": "b1a2415fd47ed6fbe05a34850152c7000641b42ce1aa4b2fa7cb1b42beccc63c",
+          "bytes": 51200,
+          "ms": 1160
+        }
+      }
+    },
+    {
+      "slug": "marimba",
+      "name": "Marimba",
+      "version": "1",
+      "license": "CC0-1.0",
+      "file": "sounds/marimba/theme.json",
+      "sha256": "88331e2a3a9e0c31890277faee325e0f08caede1b924ddf8c7f693f49159bb46",
+      "bytes": 624,
+      "sounds": {
+        "up": {
+          "file": "sounds/marimba/up.wav",
+          "sha256": "97317d07c9baccdad01b2e754fd4dcea461770b3585c9cf926a0ce53fedbf4af",
+          "bytes": 37970,
+          "ms": 860
+        },
+        "down": {
+          "file": "sounds/marimba/down.wav",
+          "sha256": "e66b99d02c81c254d677f63619714e27e438444f12b882ab461b2844163a5603",
+          "bytes": 37970,
+          "ms": 860
+        },
+        "account": {
+          "file": "sounds/marimba/account.wav",
+          "sha256": "54484d3a293ea4455d8b43383468c41b3a63e8fc5b359a083231147cea89fc41",
+          "bytes": 37088,
+          "ms": 840
+        },
+        "warn": {
+          "file": "sounds/marimba/warn.wav",
+          "sha256": "85543a66f3f50018187cef01e3d6d32d3b2f60b062780d91916317de37cf7229",
+          "bytes": 52964,
+          "ms": 1200
+        }
+      }
+    },
+    {
+      "slug": "pluck",
+      "name": "Plucked string",
+      "version": "1",
+      "license": "CC0-1.0",
+      "file": "sounds/pluck/theme.json",
+      "sha256": "5a6c8f5a289f05345d9669b6488d72ce149d858b26cdd63160587aa78ea014cc",
+      "bytes": 631,
+      "sounds": {
+        "up": {
+          "file": "sounds/pluck/up.wav",
+          "sha256": "5fb0757abd5708b99336154000192ac8edb6ca0f9bab6deb84cb5d669329f5c9",
+          "bytes": 41498,
+          "ms": 940
+        },
+        "down": {
+          "file": "sounds/pluck/down.wav",
+          "sha256": "428dcda325d0e549f04d058bd537e845b74f0430edff70b937737bf85dc93eca",
+          "bytes": 41498,
+          "ms": 940
+        },
+        "account": {
+          "file": "sounds/pluck/account.wav",
+          "sha256": "7f56b52db3bcab9afc68ad8c0995c8f1669c23abf422110b95bf631cdac07b13",
+          "bytes": 43260,
+          "ms": 980
+        },
+        "warn": {
+          "file": "sounds/pluck/warn.wav",
+          "sha256": "870d35bd54c0f9e8abb56cd64c404e9527c447f2550ff712484ecec57d0e81a6",
+          "bytes": 52964,
+          "ms": 1200
+        }
+      }
+    },
+    {
       "slug": "retro-beep",
       "name": "Retro beep",
       "version": "1",
@@ -132,6 +272,41 @@
         "warn": {
           "file": "sounds/soft-chime/warn.wav",
           "sha256": "ad00a81e892713011e8fd4b1bbbe2a583b88d79d1072a4a9bf0bdb3fddddd260",
+          "bytes": 44144,
+          "ms": 1000
+        }
+      }
+    },
+    {
+      "slug": "woodblock",
+      "name": "Woodblock",
+      "version": "1",
+      "license": "CC0-1.0",
+      "file": "sounds/woodblock/theme.json",
+      "sha256": "dfe4cbc017805e70e66601a7637e7efd65e1d3fb0d6ec1ca9d862c02db955553",
+      "bytes": 626,
+      "sounds": {
+        "up": {
+          "file": "sounds/woodblock/up.wav",
+          "sha256": "221c651af01b214c9d25b08c4c522849965c1a8c877e3303ebfc72e17dabf37a",
+          "bytes": 20770,
+          "ms": 470
+        },
+        "down": {
+          "file": "sounds/woodblock/down.wav",
+          "sha256": "83559de3e2900941f03cea5ce164189ec3624418b4189b851c5f94733127ec20",
+          "bytes": 20770,
+          "ms": 470
+        },
+        "account": {
+          "file": "sounds/woodblock/account.wav",
+          "sha256": "9a001c26e0314bab01f93aeaaaf133a04c611f259d2daaf25f60ce34f00e173e",
+          "bytes": 15478,
+          "ms": 350
+        },
+        "warn": {
+          "file": "sounds/woodblock/warn.wav",
+          "sha256": "57ded5948c2f2f76078d447d02b383f3cf24a7b1c63dec535c2eaeb4b2c3cf2b",
           "bytes": 44144,
           "ms": 1000
         }

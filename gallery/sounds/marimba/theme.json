@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "name": "Marimba",
+  "version": "1",
+  "license": "CC0-1.0",
+  "sounds": {
+    "up": {
+      "url": "up.wav",
+      "sha256": "97317d07c9baccdad01b2e754fd4dcea461770b3585c9cf926a0ce53fedbf4af"
+    },
+    "down": {
+      "url": "down.wav",
+      "sha256": "e66b99d02c81c254d677f63619714e27e438444f12b882ab461b2844163a5603"
+    },
+    "account": {
+      "url": "account.wav",
+      "sha256": "54484d3a293ea4455d8b43383468c41b3a63e8fc5b359a083231147cea89fc41"
+    },
+    "warn": {
+      "url": "warn.wav",
+      "sha256": "85543a66f3f50018187cef01e3d6d32d3b2f60b062780d91916317de37cf7229"
+    }
+  }
+}

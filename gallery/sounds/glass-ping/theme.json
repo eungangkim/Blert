@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "name": "Glass ping",
+  "version": "1",
+  "license": "CC0-1.0",
+  "sounds": {
+    "up": {
+      "url": "up.wav",
+      "sha256": "11eb716e6d397bb676f01e35393ab626b1d84d46b39280151440984364d798e8"
+    },
+    "down": {
+      "url": "down.wav",
+      "sha256": "2818d4d15dc424c9eb69e9e275bdb7d7b9c7d90cbc8985127bec01850460136d"
+    },
+    "account": {
+      "url": "account.wav",
+      "sha256": "c0a79afaf30bfa14d48474d46f89f52c17209bab9e50776dd4cea3511e5e933e"
+    },
+    "warn": {
+      "url": "warn.wav",
+      "sha256": "b1a2415fd47ed6fbe05a34850152c7000641b42ce1aa4b2fa7cb1b42beccc63c"
+    }
+  }
+}

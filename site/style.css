@@ -69,3 +69,6 @@ li { margin: 6px 0; }
 footer { border-top: 1px solid var(--line); padding: 24px 0 40px; color: var(--muted); font-size: .9rem; }
 footer p { margin: 6px 0; }
 @media (max-width: 480px) { .bar { gap: 8px; } }
+.play { display: flex; flex-wrap: wrap; gap: 6px; }
+.playbtn { font: inherit; font-size: .85rem; padding: 4px 12px; border: 1px solid var(--line); background: var(--card); color: var(--fg); border-radius: 999px; cursor: pointer; }
+.playbtn:hover, .playbtn:focus-visible { border-color: var(--accent); }

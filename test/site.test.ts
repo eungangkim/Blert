@@ -1,10 +1,11 @@
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { buildIndex, FORBIDDEN_WORDING, type GalleryIndex } from '../gallery/scripts/lib.js';
 import { EN, KO, PAGES } from '../site/content.js';
-import { esc, pick, rawUrl, renderSite } from '../site/build.js';
+import { buildSite, esc, pick, rawUrl, renderSite } from '../site/build.js';
 import { SPONSORS } from '../site/sponsors.js';
 
 // 정적 사이트 (계획 3단계, D-87, D-133). 수용 기준 번호가 없는 항목이라 결정 번호로 시작한다.
@@ -32,6 +33,8 @@ describe('정적 사이트 (D-133)', () => {
     expect(EN.privacy.body).toHaveLength(KO.privacy.body.length);
     expect(Object.keys(EN.gallery.themeText)).toEqual(Object.keys(KO.gallery.themeText));
     expect(Object.keys(EN.gallery.typeNames)).toEqual(Object.keys(KO.gallery.typeNames));
+    expect(EN.gallery.own.steps).toHaveLength(KO.gallery.own.steps.length);
+    expect(EN.gallery.own.steps.map((x) => x.code ?? '')).toEqual(KO.gallery.own.steps.map((x) => x.code ?? ''));
   });
 
   it('D-133 외부 자원을 불러오지 않고(글꼴·스크립트·이미지·분석 없음) 엄격한 CSP를 둔다', async () => {
@@ -146,5 +149,46 @@ describe('정적 사이트 (D-133)', () => {
     expect(EN.trust.sections.flatMap((s) => s.items).join()).toContain(`currently ${count}`);
     const { files } = await site();
     expect(files.find((f) => f.path === 'index.html')!.html).toContain(`npx ${pkg.name} init`);
+  });
+
+  it('D-133 소리 테마마다 미리듣기 버튼 4개가 있고, 같은 사이트 안의 WAV만 가리킨다', async () => {
+    const { index, files } = await site();
+    expect(index.themes.length).toBeGreaterThanOrEqual(7);
+    const gal = files.find((f) => f.path === 'gallery.html')!.html;
+    const en = files.find((f) => f.path === 'en/gallery.html')!.html;
+    for (const [html, prefix] of [[gal, ''], [en, '../']] as const) {
+      const targets = [...html.matchAll(/data-play="([^"]+)"/g)].map((m) => m[1]!);
+      expect(targets).toHaveLength(index.themes.length * 4);
+      for (const t of targets) {
+        expect(t.startsWith(`${prefix}sounds/`)).toBe(true);
+        expect(t.endsWith('.wav')).toBe(true);
+        expect(t).not.toMatch(/^https?:|\/\//);
+      }
+    }
+    expect(gal).toContain("media-src 'self'");
+  });
+
+  it('D-133 사이트를 만들면 미리듣기용 WAV가 출력 폴더에 함께 복사된다', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'blert-site-'));
+    try {
+      const { index } = await site();
+      const written = await buildSite(dir, REF);
+      for (const t of index.themes) {
+        for (const s of Object.values(t.sounds)) {
+          expect(written).toContain(s.file);
+          expect((await stat(join(dir, s.file))).size).toBe(s.bytes);
+        }
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('D-133 "내 소리 연결하기" 안내에 등록 명령과 형식 조건이 있고 권유 표현이 없다', async () => {
+    const { files } = await site();
+    for (const [path, words] of [['gallery.html', ['내 소리 연결하기', 'blert sound set up', 'blert sound theme', '512KB']], ['en/gallery.html', ['Use your own sounds', 'blert sound set up', 'blert sound theme', '512 KB']]] as const) {
+      const html = files.find((f) => f.path === path)!.html;
+      for (const w of words) expect(html, path).toContain(w);
+    }
   });
 });

@@ -27,6 +27,33 @@ def note(freq, dur, kind, amp, decay):
             env = math.exp(-decay * t)
             v = math.sin(2 * math.pi * freq * t) + 0.35 * math.sin(2 * math.pi * freq * 2.01 * t) + 0.12 * math.sin(2 * math.pi * freq * 3.02 * t)
             v = v / 1.47 * env
+        elif kind == "glass":
+            # 유리잔을 두드린 듯한 맑은 소리: 어긋난 배음(2.76배, 5.4배)이 빨리 사라진다
+            v = math.sin(2 * math.pi * freq * t) * math.exp(-decay * t)
+            v += 0.4 * math.sin(2 * math.pi * freq * 2.76 * t) * math.exp(-decay * 2.5 * t)
+            v += 0.15 * math.sin(2 * math.pi * freq * 5.4 * t) * math.exp(-decay * 5 * t)
+            env = 1.0
+        elif kind == "wood":
+            # 목탁 같은 짧은 소리: 낮은 사인파가 매우 빨리 줄어들고 어긋난 배음이 딱 소리를 더한다
+            v = math.sin(2 * math.pi * freq * t) * math.exp(-decay * t)
+            v += 0.5 * math.sin(2 * math.pi * freq * 2.3 * t) * math.exp(-decay * 2.2 * t)
+            env = 1.0
+        elif kind == "marimba":
+            # 마림바: 기본음 + 4배음이 먼저 사라지는 따뜻한 소리
+            v = math.sin(2 * math.pi * freq * t) * math.exp(-decay * t)
+            v += 0.3 * math.sin(2 * math.pi * freq * 4 * t) * math.exp(-decay * 3 * t)
+            env = 1.0
+        elif kind == "pluck":
+            # 줄을 튕긴 소리: 높은 배음일수록 빨리 사라진다 (난수를 쓰지 않는 합성)
+            v = sum(math.sin(2 * math.pi * freq * h * t) * math.exp(-decay * h * t) / h for h in range(1, 7))
+            env = 1.0
+        elif kind == "gong":
+            # 낮고 긴 징 소리: 어긋난 배음이 천천히 사라진다
+            v = math.sin(2 * math.pi * freq * t) * math.exp(-decay * t)
+            v += 0.6 * math.sin(2 * math.pi * freq * 1.47 * t) * math.exp(-decay * 1.3 * t)
+            v += 0.4 * math.sin(2 * math.pi * freq * 2.09 * t) * math.exp(-decay * 1.8 * t)
+            v += 0.25 * math.sin(2 * math.pi * freq * 3.2 * t) * math.exp(-decay * 2.6 * t)
+            env = 1.0
         else:
             env = 1.0
             v = 1.0 if math.sin(2 * math.pi * freq * t) >= 0 else -1.0
@@ -95,9 +122,47 @@ def retro_beep():
     }
 
 
+def theme_of(kind, amp, decay, step, notes, low, warn_freqs, warn_step, warn_decay, dur=0.5):
+    """공통 틀: 소리 종류(kind) 하나로 4칸을 만든다. up은 올라가는 음, down은 내려가는 음, account는 한 번 더 길게 울리는 두 음, warn은 같은 음을 세 번 (낮고 길게)"""
+    n = lambda f, d=dur, a=amp, dc=decay: note(f, d, kind, a, dc)
+    up_a, up_b, up_c = notes
+    return {
+        "up": mix([(0.0, n(up_a)), (step, n(up_b)), (step * 2, n(up_c))], step * 2 + dur),
+        "down": mix([(0.0, n(up_c)), (step, n(up_b)), (step * 2, n(up_a))], step * 2 + dur),
+        "account": mix([(0.0, n(up_b, dur * 1.4)), (0.0, [s * 0.6 for s in n(up_b * 1.5, dur * 1.4)])], dur * 1.4),
+        "warn": mix([(i * warn_step, note(low, 0.6, kind, amp * 1.1, warn_decay)) for i in range(3)]
+                    + [(i * warn_step, [s * 0.7 for s in note(f, 0.6, kind, amp, warn_decay)]) for i in range(3) for f in warn_freqs], warn_step * 2 + 0.6),
+    }
+
+
+def glass_ping():
+    return {k: normalize(v) for k, v in theme_of("glass", 0.5, 9.0, 0.12, (1046.5, 1318.51, 1567.98), 880.0, (1174.66,), 0.28, 6.0, 0.55).items()}
+
+
+def woodblock():
+    return {k: normalize(v) for k, v in theme_of("wood", 0.6, 28.0, 0.11, (392.0, 493.88, 587.33), 329.63, (440.0,), 0.2, 22.0, 0.25).items()}
+
+
+def marimba():
+    return {k: normalize(v) for k, v in theme_of("marimba", 0.5, 8.0, 0.13, (523.25, 659.25, 783.99), 440.0, (587.33,), 0.3, 6.0, 0.6).items()}
+
+
+def pluck():
+    return {k: normalize(v) for k, v in theme_of("pluck", 0.4, 5.5, 0.12, (329.63, 415.3, 493.88), 261.63, (392.0,), 0.3, 4.0, 0.7).items()}
+
+
+def deep_gong():
+    return {k: normalize(v) for k, v in theme_of("gong", 0.5, 2.6, 0.32, (196.0, 246.94, 293.66), 146.83, (220.0,), 0.55, 2.0, 1.2).items()}
+
+
 THEMES = {
     "soft-chime": ("Soft chime", soft_chime),
     "retro-beep": ("Retro beep", retro_beep),
+    "glass-ping": ("Glass ping", glass_ping),
+    "woodblock": ("Woodblock", woodblock),
+    "marimba": ("Marimba", marimba),
+    "pluck": ("Plucked string", pluck),
+    "deep-gong": ("Deep gong", deep_gong),
 }
 
 

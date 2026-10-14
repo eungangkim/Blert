@@ -49,6 +49,11 @@ interface Content {
     reqPreset: string;
     reqTheme: string;
     themeText: Record<string, string>;
+    previewLabel: string;
+    previewNote: string;
+    playAria: string;
+    kindNames: { up: string; down: string; account: string; warn: string };
+    own: { title: string; intro: string; steps: { title: string; body: string; code?: string }[]; note: string };
     typeNames: Record<string, string>;
     verifyTitle: string;
     verify: string;
@@ -144,6 +149,26 @@ export const KO: Content = {
     themeText: {
       'soft-chime': '부드러운 종소리. 올라가는 두 음, 내려가는 두 음, 맑은 종 한 번, 같은 음 세 번(경고).',
       'retro-beep': '짧은 8비트풍 삑 소리. 오르내리는 3음, 높은 두 음, 번갈아 세 번(경고).',
+      'glass-ping': '유리잔을 두드린 듯 맑고 높은 소리. 오르내리는 3음, 길게 울리는 두 음, 낮은 음과 높은 음을 겹쳐 세 번(경고).',
+      woodblock: '목탁 같은 짧고 딱딱한 소리. 오르내리는 3음, 길게 울리는 두 음, 낮은 음을 세 번(경고). 조용한 곳에서 거슬리지 않습니다.',
+      marimba: '마림바처럼 따뜻한 소리. 오르내리는 3음, 길게 울리는 두 음, 같은 음을 세 번(경고).',
+      pluck: '줄을 튕긴 소리. 오르내리는 3음, 길게 울리는 두 음, 낮은 음을 세 번(경고).',
+      'deep-gong': '낮고 느리게 울리는 징 소리. 오르내리는 3음, 길게 울리는 두 음, 낮은 음을 세 번(경고). 소리가 길어 한 번에 여러 개가 울리면 겹칠 수 있습니다.',
+    },
+    previewLabel: '미리듣기',
+    previewNote: '버튼을 누르면 이 페이지에 들어 있는 소리 파일을 재생합니다. 외부 서버로 요청하지 않습니다. 실제 알림에서는 PC의 볼륨과 설정에 따라 다르게 들릴 수 있습니다.',
+    playAria: '{kind} 소리 듣기',
+    kindNames: { up: '올림', down: '내림', account: '계정', warn: '경고' },
+    own: {
+      title: '내 소리 연결하기',
+      intro: '갤러리의 소리가 아니어도 됩니다. 가지고 있는 WAV 파일을 알림 종류(올림 up, 내림 down, 계정 account, 경고 warn)별로 연결할 수 있고, 등록하기 전에 blert가 파일을 직접 검사합니다.',
+      steps: [
+        { title: '1. 파일 준비', body: 'WAV(PCM 16비트), 모노 또는 스테레오, 8,000~48,000Hz, 3초 이하, 512KB 이하여야 합니다. MP3 같은 다른 형식은 먼저 WAV로 바꿔 주세요.' },
+        { title: '2. 한 칸씩 등록', body: '알림 종류 이름 뒤에 파일 경로를 적습니다. 파일은 blert의 설정 폴더로 복사되고, 실행 중인 감시도 재시작 없이 다음 알림부터 새 소리를 씁니다.', code: 'blert sound set up ./my-up.wav\nblert sound set warn ./my-warn.wav' },
+        { title: '3. 네 칸을 한 번에', body: '한 폴더에 WAV 4개와 theme.json을 두고 한 번에 등록합니다. theme.json은 <a href="{repo}/blob/main/gallery/sounds/soft-chime/theme.json">갤러리의 theme.json</a>을 따라 쓰면 되고, 소리 파일마다 SHA-256 해시가 필요합니다. 해시는 Windows PowerShell에서 <code>Get-FileHash 파일.wav</code>, macOS·Linux에서 <code>shasum -a 256 파일.wav</code>로 구합니다.', code: 'blert sound theme ./my-theme/theme.json' },
+        { title: '4. 들어 보고 되돌리기', body: '등록한 소리는 바로 들어 볼 수 있고, 마음에 들지 않으면 번들 소리로 되돌립니다.', code: 'blert sound test up\nblert sound list\nblert sound reset all' },
+      ],
+      note: '저작권이 있는 소리는 쓰지 마세요. 직접 만들었거나 사용을 허락받은 소리만 쓰세요. 이 방식은 내 PC의 파일만 쓰므로 네트워크를 사용하지 않습니다. 주소로 등록하는 방법은 <a href="{repo}#readme">README</a>를 보세요. blert 1.1 이상이 필요합니다.',
     },
     typeNames: { price: '가격', change: '변동률', volume: '거래량', funding: '펀딩비', fill: '체결', balance: '잔고', liq: '청산가' },
     verifyTitle: '설치 전에 확인하는 법',
@@ -289,6 +314,26 @@ export const EN: Content = {
     themeText: {
       'soft-chime': 'A soft bell. Two rising notes, two falling notes, one clear bell, and the same note three times for warnings.',
       'retro-beep': 'Short 8-bit style beeps. Rising and falling three-note runs, two high notes, and an alternating triple for warnings.',
+      'glass-ping': 'A clear, high tap on a glass. Rising and falling three-note runs, two long notes, and a low and a high note layered three times for warnings.',
+      woodblock: 'A short, dry wooden tap. Rising and falling three-note runs, two long notes, and a low note three times for warnings. Easy on the ears in a quiet room.',
+      marimba: 'A warm marimba. Rising and falling three-note runs, two long notes, and the same note three times for warnings.',
+      pluck: 'A plucked string. Rising and falling three-note runs, two long notes, and a low note three times for warnings.',
+      'deep-gong': 'A low, slow gong. Rising and falling three-note runs, two long notes, and a low note three times for warnings. The sounds are long, so several at once can overlap.',
+    },
+    previewLabel: 'Preview',
+    previewNote: 'The buttons play the sound files bundled with this page. Nothing is requested from another server. In real alerts the sound may differ with your PC’s volume and settings.',
+    playAria: 'Play the {kind} sound',
+    kindNames: { up: 'Up', down: 'Down', account: 'Account', warn: 'Warning' },
+    own: {
+      title: 'Use your own sounds',
+      intro: 'You are not limited to the gallery. You can connect WAV files you already have to each alert kind (up, down, account, warn), and blert checks each file itself before registering it.',
+      steps: [
+        { title: '1. Prepare the file', body: 'It must be WAV (16-bit PCM), mono or stereo, 8,000 to 48,000 Hz, at most 3 seconds and 512 KB. Convert other formats such as MP3 to WAV first.' },
+        { title: '2. Register one slot at a time', body: 'Put the alert kind and then the file path. The file is copied into blert’s settings folder, and a running monitor uses the new sound from the next alert without a restart.', code: 'blert sound set up ./my-up.wav\nblert sound set warn ./my-warn.wav' },
+        { title: '3. All four at once', body: 'Put four WAV files and a theme.json in one folder and register them together. Write theme.json by following <a href="{repo}/blob/main/gallery/sounds/soft-chime/theme.json">the gallery’s theme.json</a>; each sound file needs its SHA-256 hash. Get it with <code>Get-FileHash file.wav</code> in Windows PowerShell, or <code>shasum -a 256 file.wav</code> on macOS and Linux.', code: 'blert sound theme ./my-theme/theme.json' },
+        { title: '4. Listen and undo', body: 'You can listen to a registered sound right away, and go back to the bundled sounds if you do not like it.', code: 'blert sound test up\nblert sound list\nblert sound reset all' },
+      ],
+      note: 'Do not use copyrighted sounds. Use only sounds you made or have permission to use. This way uses only files on your PC, so it does not use the network. For registering from an address, see the <a href="{repo}/blob/main/README.en.md">README</a>. Requires blert 1.1 or later.',
     },
     typeNames: { price: 'price', change: 'change', volume: 'volume', funding: 'funding', fill: 'fills', balance: 'balance', liq: 'liquidation' },
     verifyTitle: 'How to verify before installing',
