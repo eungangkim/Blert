@@ -1,0 +1,42 @@
+# 웹사이트(site/)를 만들어 GitHub Pages로 공개한다 (D-133). main에 사이트·갤러리가 바뀌어 올라오거나 손으로 실행할 때 돈다.
+# 전제: 저장소 Settings → Pages → Build and deployment → Source를 "GitHub Actions"로 바꿔 두어야 한다.
+# 사이트는 외부 요청이 없는 정적 파일이고, 갤러리 설치 주소는 이 실행의 커밋에 고정된다(D-85).
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths: ['site/**', 'gallery/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      # 공급망 보안(NFR-SEC-03): 액션은 태그가 아니라 커밋 SHA로 고정한다.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test
+      - run: npm run gallery:check
+      - run: npm run site:build
+      - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: site/out
+      - id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
