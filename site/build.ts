@@ -16,6 +16,10 @@ import { SPONSORS, type Sponsor } from './sponsors.js';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
 const RAW = 'https://raw.githubusercontent.com/eungangkim/Blert';
+/** 공개 주소(GitHub Pages). 도메인을 사면 여기만 바꾼다. canonical, hreflang, sitemap.xml이 이 주소를 쓴다 */
+export const SITE_URL = 'https://eungangkim.github.io/Blert/';
+/** 한 페이지의 공개 주소. 홈은 폴더 주소(index.html 없이)로 둔다 */
+export const pageUrl = (lang: Lang, id: PageId): string => `${SITE_URL}${lang === 'en' ? 'en/' : ''}${id === 'index' ? '' : `${id}.html`}`;
 
 /** style.css·app.js 주소에 내용 해시를 붙여, 고친 뒤에도 브라우저가 옛 파일을 그대로 쓰지 않게 한다 */
 const assetVer = (name: string): string => createHash('sha256').update(readFileSync(join(HERE, name))).digest('hex').slice(0, 10);
@@ -46,7 +50,6 @@ function layout(lang: Lang, id: PageId, body: string): string {
   const other: Lang = lang === 'ko' ? 'en' : 'ko';
   const switchHref = lang === 'ko' ? `en/${fileName(id)}` : `../${fileName(id)}`;
   const nav = PAGES.map((p) => `<a href="${fileName(p)}"${p === id ? ' aria-current="page"' : ''}>${esc(c.nav[p])}</a>`).join('');
-  const alt = (l: Lang): string => (l === 'en' ? `en/${fileName(id)}` : fileName(id));
   return `<!doctype html>
 <html lang="${c.htmlLang}">
 <head>
@@ -57,8 +60,16 @@ function layout(lang: Lang, id: PageId, body: string): string {
 <meta name="description" content="${esc(c.descriptions[id])}">
 <meta name="referrer" content="no-referrer">
 <link rel="stylesheet" href="${up}style.css?v=${STYLE_VER}">
-<link rel="alternate" hreflang="ko" href="${up}${alt('ko')}">
-<link rel="alternate" hreflang="en" href="${up}${alt('en')}">
+<link rel="canonical" href="${pageUrl(lang, id)}">
+<link rel="alternate" hreflang="ko" href="${pageUrl('ko', id)}">
+<link rel="alternate" hreflang="en" href="${pageUrl('en', id)}">
+<link rel="alternate" hreflang="x-default" href="${pageUrl('ko', id)}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="blert">
+<meta property="og:title" content="${esc(c.titles[id])}">
+<meta property="og:description" content="${esc(c.descriptions[id])}">
+<meta property="og:url" content="${pageUrl(lang, id)}">
+<meta property="og:locale" content="${lang === 'ko' ? 'ko_KR' : 'en_US'}">
 <script src="${up}app.js?v=${APP_VER}" defer></script>
 </head>
 <body data-copied="${esc(c.copied)}">
@@ -223,6 +234,19 @@ export function renderSite(index: GalleryIndex, ref: string, sponsors: readonly 
   return out;
 }
 
+/** 검색엔진용 사이트맵: 모든 페이지와 한·영 대응 관계 */
+export function renderSitemap(): string {
+  const entries = (['ko', 'en'] as const).flatMap((lang) =>
+    PAGES.map((id) => {
+      const alts = (['ko', 'en'] as const).map((l) => `    <xhtml:link rel="alternate" hreflang="${l}" href="${pageUrl(l, id)}"/>`).join('\n');
+      return `  <url>\n    <loc>${pageUrl(lang, id)}</loc>\n${alts}\n  </url>`;
+    }),
+  );
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${entries.join('\n')}\n</urlset>\n`;
+}
+
+export const renderRobots = (): string => `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}sitemap.xml\n`;
+
 export async function buildSite(outDir: string, ref: string): Promise<string[]> {
   const { index, problems } = await buildIndex(join(ROOT, 'gallery'));
   if (problems.length > 0) throw new Error(`갤러리 검사에 실패했습니다:\n${problems.join('\n')}`);
@@ -252,6 +276,9 @@ export async function buildSite(outDir: string, ref: string): Promise<string[]> 
       written.push(name);
     }
   }
+  await writeFile(join(outDir, 'sitemap.xml'), renderSitemap());
+  await writeFile(join(outDir, 'robots.txt'), renderRobots());
+  written.push('sitemap.xml', 'robots.txt');
   await writeFile(join(outDir, '.nojekyll'), '');
   return written;
 }

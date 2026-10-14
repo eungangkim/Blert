@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { buildIndex, FORBIDDEN_WORDING, type GalleryIndex } from '../gallery/scripts/lib.js';
 import { EN, KO, PAGES } from '../site/content.js';
-import { buildSite, esc, pick, rawUrl, renderSite } from '../site/build.js';
+import { buildSite, esc, pageUrl, pick, rawUrl, renderRobots, renderSitemap, renderSite, SITE_URL } from '../site/build.js';
 import { SPONSORS } from '../site/sponsors.js';
 
 // 정적 사이트 (계획 3단계, D-87, D-133). 수용 기준 번호가 없는 항목이라 결정 번호로 시작한다.
@@ -42,13 +42,14 @@ describe('정적 사이트 (D-133)', () => {
     for (const f of files) {
       expect(f.html, f.path).toContain("default-src 'none'");
       expect(f.html, f.path).not.toMatch(/<(script|img|iframe|embed|object|source|video|audio)\b[^>]*\b(src|data)=["']?(https?:)?\/\//i);
-      expect(f.html, f.path).not.toMatch(/<link\b[^>]*\bhref=["']?https?:/i);
+      // 외부 자원 링크는 없다. canonical·hreflang(rel=canonical/alternate)은 사이트 자신의 주소라서 예외
+      expect(f.html.replace(/<link rel="(?:canonical|alternate)"[^>]*>/g, ''), f.path).not.toMatch(/<link\b[^>]*\bhref=["']?https?:/i);
       expect(f.html, f.path).not.toMatch(/<form\b/i);
       expect(f.html, f.path).not.toMatch(/<script(?![^>]*\bsrc=)/i); // 인라인 스크립트 없음
       for (const m of f.html.matchAll(/\b(?:src|href)="([^"]+)"/g)) {
         const url = m[1]!;
         // 후원 링크(site/sponsors.ts)는 사용자가 직접 정한 주소만 허용한다
-        if (/^https?:/.test(url) && !SPONSORS.some((sp) => sp.url === url)) expect(url, f.path).toMatch(/^https:\/\/(github\.com\/eungangkim\/Blert|www\.npmjs\.com\/package\/@eungang\/blert|raw\.githubusercontent\.com\/eungangkim\/Blert)/);
+        if (/^https?:/.test(url) && !url.startsWith(SITE_URL) && !SPONSORS.some((sp) => sp.url === url)) expect(url, f.path).toMatch(/^https:\/\/(github\.com\/eungangkim\/Blert|www\.npmjs\.com\/package\/@eungang\/blert|raw\.githubusercontent\.com\/eungangkim\/Blert)/);
       }
     }
     const css = await readFile(join(ROOT, 'site', 'style.css'), 'utf8');
@@ -203,5 +204,31 @@ describe('정적 사이트 (D-133)', () => {
       expect(f.html, f.path).toMatch(/href="(\.\.\/)?style\.css\?v=[0-9a-f]{10}"/);
       expect(f.html, f.path).toMatch(/src="(\.\.\/)?app\.js\?v=[0-9a-f]{10}"/);
     }
+  });
+
+  it('D-133 모든 페이지에 canonical·hreflang·Open Graph가 있고 사이트 자신의 주소를 가리킨다', async () => {
+    const { files } = await site();
+    for (const f of files) {
+      const lang = f.path.startsWith('en/') ? 'en' : 'ko';
+      const id = f.path.replace(/^en\//, '').replace(/\.html$/, '') as 'index' | 'start' | 'gallery' | 'trust' | 'privacy';
+      expect(f.html, f.path).toContain(`<link rel="canonical" href="${pageUrl(lang, id)}">`);
+      expect(f.html, f.path).toContain(`hreflang="ko" href="${pageUrl('ko', id)}"`);
+      expect(f.html, f.path).toContain(`hreflang="en" href="${pageUrl('en', id)}"`);
+      expect(f.html, f.path).toContain(`<meta property="og:url" content="${pageUrl(lang, id)}">`);
+      expect(f.html, f.path).not.toMatch(/og:image/); // 이미지를 외부에서 불러오지 않는다
+    }
+    expect(pageUrl('ko', 'index')).toBe(SITE_URL);
+    expect(pageUrl('en', 'gallery')).toBe(`${SITE_URL}en/gallery.html`);
+  });
+
+  it('D-133 sitemap.xml은 한·영 모든 페이지를 담고 robots.txt가 sitemap을 알린다', () => {
+    const xml = renderSitemap();
+    expect((xml.match(/<loc>/g) ?? []).length).toBe(PAGES.length * 2);
+    for (const l of ['ko', 'en'] as const) for (const p of PAGES) expect(xml).toContain(`<loc>${pageUrl(l, p)}</loc>`);
+    expect(xml.startsWith('<?xml')).toBe(true);
+    const robots = renderRobots();
+    expect(robots).toContain('User-agent: *');
+    expect(robots).toContain(`Sitemap: ${SITE_URL}sitemap.xml`);
+    expect(robots).not.toMatch(/Disallow:\s*\S/);
   });
 });
