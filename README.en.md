@@ -15,7 +15,7 @@ Node.js 24 or later is required.
 
 ```bash
 npx @eungang/blert init        # start right away (initial setup)
-npm install -g @eungang/blert@1.0.0   # global install (the command is `blert` afterwards)
+npm install -g @eungang/blert@1.5.0   # global install (the command is `blert` afterwards)
 ```
 
 **Updating:** we recommend using the latest version. Before updating, check the [release notes](https://github.com/eungangkim/Blert/releases) and the npm provenance badge, then run `npm install -g @eungang/blert@latest`. A running background monitor must be restarted to use the new version (`blert stop` → `blert start`). blert does not look up new versions by itself, so use Watch → Releases on the GitHub repository to get notified.
